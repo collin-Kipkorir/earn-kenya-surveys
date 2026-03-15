@@ -1,19 +1,43 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { requestWithdrawal } from '@/lib/storage';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react';
 import { z } from 'zod';
+import { useNavigate } from 'react-router-dom';
 
 const phoneSchema = z.string().regex(/^(07|01|\+254)\d{8,9}$/, 'Invalid M-Pesa number');
 
 export default function WithdrawPage() {
   const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [phone, setPhone] = useState(user?.phone || '');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   if (!user) return null;
+
+  // If not activated, show activation prompt
+  if (!user.isActivated) {
+    return (
+      <div className="px-4 pt-6 max-w-md mx-auto">
+        <h1 className="text-2xl font-display font-bold text-foreground mb-2">Withdraw</h1>
+        <p className="text-sm text-muted-foreground mb-6">Withdraw your earnings via M-Pesa</p>
+
+        <div className="bg-card rounded-xl p-6 shadow-card text-center space-y-4">
+          <ShieldAlert className="w-12 h-12 text-accent mx-auto" />
+          <h2 className="text-lg font-bold text-foreground">Account Not Activated</h2>
+          <p className="text-sm text-muted-foreground">You need to activate your account before you can withdraw earnings.</p>
+          <button
+            onClick={() => navigate('/dashboard/profile')}
+            className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity"
+          >
+            Activate Account (KSh 100)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,13 +67,6 @@ export default function WithdrawPage() {
         <p className="text-3xl font-bold text-foreground">KSh {user.balance.toLocaleString()}</p>
       </div>
 
-      {!user.isActivated && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-accent/20 text-accent-foreground text-sm mb-4">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-          <p>You must activate your account (KSh 100) before withdrawing. Go to Profile to activate.</p>
-        </div>
-      )}
-
       {success && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-primary text-sm mb-4">
           <CheckCircle className="w-5 h-5" />
@@ -65,10 +82,10 @@ export default function WithdrawPage() {
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712345678" className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring outline-none" required />
         </div>
         <div>
-          <label className="text-sm font-medium text-foreground block mb-1.5">Amount (Min KSh 5,000)</label>
-          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="5000" min={5000} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring outline-none" required />
+          <label className="text-sm font-medium text-foreground block mb-1.5">Amount (KSh)</label>
+          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Enter amount" className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring outline-none" required />
         </div>
-        <button type="submit" disabled={!user.isActivated} className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity disabled:opacity-50">
+        <button type="submit" className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
           Request Withdrawal
         </button>
       </form>

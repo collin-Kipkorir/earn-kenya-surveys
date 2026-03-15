@@ -28,6 +28,11 @@ const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, tra
 export default function LandingPage() {
   const [searchParams] = useSearchParams();
   const ref = searchParams.get('ref');
+  const currentUser = getCurrentUser();
+
+  if (currentUser && currentUser.onboardingCompleted) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
