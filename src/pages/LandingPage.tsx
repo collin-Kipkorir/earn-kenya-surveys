@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import heroImg from '@/assets/hero-illustration.png';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, Navigate } from 'react-router-dom';
 import { CheckCircle, ArrowRight, Users, Smartphone, Wallet, Star } from 'lucide-react';
+import { getCurrentUser } from '@/lib/storage';
 
 const steps = [
   { icon: Users, label: 'Register Free', desc: 'Create your account in seconds' },
