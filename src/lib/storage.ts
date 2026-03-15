@@ -251,7 +251,7 @@ export function completeOnboarding(userId: string) {
 
 // Seed surveys
 export function seedSurveys() {
-  if (getSurveys().length > 0) return;
+  if (getSurveys().length >= 60) return;
 
   const makeQuestions = (prefix: string, topic: string): SurveyQuestion[] => [
     { id: `${prefix}q1`, text: `What is your experience with ${topic}?`, type: 'multiple-choice', options: ['Very familiar', 'Somewhat familiar', 'Not familiar', 'Never heard of it'] },
