@@ -1,6 +1,6 @@
 import { useAuth } from '@/lib/auth-context';
 import { getAvailableSurveys, getSurveys, Survey } from '@/lib/storage';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Lock, CheckCircle, ArrowRight, Crown, Zap, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 
