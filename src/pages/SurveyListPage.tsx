@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 
 export default function SurveyListPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   if (!user) return null;
 
   const allSurveys = getSurveys();
