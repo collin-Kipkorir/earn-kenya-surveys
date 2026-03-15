@@ -1,11 +1,12 @@
 import { useAuth } from '@/lib/auth-context';
 import { getAvailableSurveys, getSurveys, Survey } from '@/lib/storage';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Lock, CheckCircle, ArrowRight, Crown, Zap, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function SurveyListPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   if (!user) return null;
 
   const allSurveys = getSurveys();
@@ -37,11 +38,11 @@ export default function SurveyListPage() {
           return (
             <motion.div key={survey.id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.05 }}>
               {locked ? (
-                <div className="bg-card rounded-xl p-4 shadow-card opacity-60 relative overflow-hidden">
+                <div onClick={() => navigate('/dashboard/upgrade')} className="bg-card rounded-xl p-4 shadow-card opacity-60 relative overflow-hidden cursor-pointer hover:opacity-75 transition-opacity">
                   <div className="absolute inset-0 bg-muted/30 backdrop-blur-[1px] flex items-center justify-center z-10">
                     <div className="flex flex-col items-center gap-1">
                       <Lock className="w-5 h-5 text-muted-foreground" />
-                      <span className="text-xs font-medium text-muted-foreground">Upgrade to {survey.tier}</span>
+                      <span className="text-xs font-medium text-muted-foreground">Tap to upgrade to {survey.tier}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
