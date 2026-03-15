@@ -1,3 +1,4 @@
+import React from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getAvailableSurveys } from '@/lib/storage';
 import { Link } from 'react-router-dom';
