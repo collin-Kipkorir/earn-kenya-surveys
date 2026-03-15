@@ -22,7 +22,7 @@ export default function DashboardHome() {
           <h1 className="text-2xl font-display font-bold text-foreground">{user.name.split(' ')[0]} 👋</h1>
         </div>
         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${user.tier === 'gold' ? 'gradient-gold text-accent-foreground' : user.tier === 'premium' ? 'gradient-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-          {<tierIcon className="w-4 h-4" />}
+          {React.createElement(tierIcon, { className: "w-4 h-4" })}
           {user.tier.charAt(0).toUpperCase() + user.tier.slice(1)}
         </div>
       </div>
