@@ -140,8 +140,9 @@ app.post('/api/payments/initiate', async (req, res) => {
   payments.push(payment);
   await writePayments(payments);
 
-  await appendLog('info', 'Payment record created', { paymentId: payment.id, providerResponse: payment.providerResponse });
-  res.json({ paymentId: payment.id, providerResponse: payment.providerResponse });
+  await appendLog('info', 'Payment record created', { paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null });
+  // Return providerRequestId at top-level so frontend can poll provider status immediately
+  res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null, payment });
 });
 
 // Get payment by id
