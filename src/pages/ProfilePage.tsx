@@ -26,7 +26,7 @@ export default function ProfilePage() {
     // do we activate the user locally.
     (async () => {
       try {
-        const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:4000';
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
         const resp = await fetch(`${apiBase}/api/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -40,7 +40,7 @@ export default function ProfilePage() {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
           toast.error(`Payment initiation error: ${errMsg}`);
           try {
-            const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:4000';
+            const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
             const logsResp = await fetch(`${apiBase}/api/payments/logs?limit=50`);
             if (logsResp.ok) {
               const logsJson = await logsResp.json();

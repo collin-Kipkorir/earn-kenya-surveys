@@ -25,7 +25,7 @@ export default function UpgradePage() {
   const handleUpgrade = (tier: 'premium' | 'gold') => {
     (async () => {
       try {
-        const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:4000';
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
         const resp = await fetch(`${apiBase}/api/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
