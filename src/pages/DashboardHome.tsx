@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getAvailableSurveys } from '@/lib/storage';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ClipboardList, Wallet, ArrowUpCircle, Users, Crown, Zap, Shield } from 'lucide-react';
+import AdBanner from '@/components/AdBanner';
 
 export default function DashboardHome() {
   const { user } = useAuth();
@@ -56,9 +57,10 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <h2 className="font-display font-bold text-foreground mb-3">Quick Actions</h2>
-      <div className="grid grid-cols-2 gap-3">
+  {/* Quick Actions */}
+  <h2 className="font-display font-bold text-foreground mb-3">Quick Actions</h2>
+  {/* Inline ad at bottom of quick actions should be dismissable and persist until cleared */}
+  <div className="grid grid-cols-2 gap-3">
         <Link to="/dashboard/surveys" className="bg-card rounded-xl p-4 shadow-card flex flex-col items-center gap-2 hover:shadow-elevated transition-shadow">
           <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center"><ClipboardList className="w-6 h-6 text-primary-foreground" /></div>
           <span className="text-sm font-semibold text-foreground">Take Surveys</span>
@@ -75,7 +77,34 @@ export default function DashboardHome() {
           <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center"><Users className="w-6 h-6 text-secondary-foreground" /></div>
           <span className="text-sm font-semibold text-foreground">Invite Friends</span>
         </Link>
+        {/* Inline Ad — spans full width of the quick-actions grid */}
+        <div className="col-span-2">
+          <InlineAd />
+        </div>
       </div>
     </div>
   );
+}
+
+function InlineAd() {
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('surveyearn_ad_dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (dismissed) localStorage.setItem('surveyearn_ad_dismissed', '1');
+      else localStorage.removeItem('surveyearn_ad_dismissed');
+    } catch (err) {
+      // ignore storage errors (private mode, quota, etc.)
+    }
+  }, [dismissed]);
+
+  if (dismissed) return null;
+
+  return <AdBanner inline show={!dismissed} onDismiss={() => setDismissed(true)} />;
 }
