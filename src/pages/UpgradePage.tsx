@@ -25,8 +25,9 @@ export default function UpgradePage() {
   const handleUpgrade = (tier: 'premium' | 'gold') => {
     (async () => {
       try {
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-        const resp = await fetch(`${apiBase}/api/payments/initiate`, {
+    const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
+    const base = apiBase.replace(/\/+$/, '');
+    const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
@@ -58,7 +59,7 @@ export default function UpgradePage() {
         const timeoutMs = 2 * 60 * 1000;
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
-          const sresp = await fetch(`${apiBase}/api/payments/${paymentId}`);
+    const sresp = await fetch(`${base}/payments/${paymentId}`);
           if (!sresp.ok) continue;
           const data = await sresp.json();
           if (data.status === 'success') {

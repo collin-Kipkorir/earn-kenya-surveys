@@ -27,7 +27,8 @@ export default function ProfilePage() {
     (async () => {
       try {
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-        const resp = await fetch(`${apiBase}/api/payments/initiate`, {
+  const base = apiBase.replace(/\/+$/, '');
+  const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
@@ -41,7 +42,8 @@ export default function ProfilePage() {
           toast.error(`Payment initiation error: ${errMsg}`);
           try {
             const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-            const logsResp = await fetch(`${apiBase}/api/payments/logs?limit=50`);
+            const base = apiBase.replace(/\/+$/, '');
+            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
             if (logsResp.ok) {
               const logsJson = await logsResp.json();
               console.groupCollapsed('Payhero logs (initiate error)');
