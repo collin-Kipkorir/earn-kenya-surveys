@@ -3,6 +3,7 @@ import path from 'path';
 
 const DATA_PATH = path.join(process.cwd(), 'server', 'payments.json');
 const LOG_PATH = path.join(process.cwd(), 'server', 'payments.log');
+const USERS_PATH = path.join(process.cwd(), 'server', 'users.json');
 
 export async function appendLog(level, message, meta) {
   const entry = { ts: new Date().toISOString(), level, message, meta };
@@ -36,4 +37,34 @@ export async function writePayments(arr) {
 
 export function generateId() {
   return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(4);
+}
+
+export async function readUsers() {
+  try {
+    const raw = await fs.readFile(USERS_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function writeUsers(arr) {
+  try {
+    await fs.mkdir(path.dirname(USERS_PATH), { recursive: true });
+    await fs.writeFile(USERS_PATH, JSON.stringify(arr, null, 2));
+  } catch (e) {
+    console.error('Failed to write users', e);
+  }
+}
+
+export async function upsertUser(user) {
+  const users = await readUsers();
+  const idx = users.findIndex(u => u.id === user.id);
+  if (idx === -1) {
+    users.push(user);
+  } else {
+    users[idx] = { ...users[idx], ...user };
+  }
+  await writeUsers(users);
+  return user;
 }

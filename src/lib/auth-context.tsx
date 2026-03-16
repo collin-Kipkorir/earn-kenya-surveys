@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, getCurrentUser, getCurrentUserId, setCurrentUserId, checkDailyReset } from './storage';
+import { User, getCurrentUser, getCurrentUserId, setCurrentUserId, checkDailyReset, updateUser } from './storage';
 
 interface AuthContextType {
   user: User | null;
@@ -28,7 +28,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(() => {
     const u = getCurrentUser();
     if (u) checkDailyReset(u.id);
-    setUser(u ? { ...u } : null);
+    // Try to fetch server-side authoritative user state and merge it into localStorage
+    (async () => {
+      try {
+        const API_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '');
+        if (u) {
+          const base = API_BASE || '';
+          const resp = await fetch(`${base}/api/users/${u.id}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.user) {
+              // Merge server fields into local user record
+              try {
+                updateUser(u.id, data.user);
+              } catch (e) {
+                // ignore if user missing locally
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // ignore network errors
+      }
+      const latest = getCurrentUser();
+      setUser(latest ? { ...latest } : null);
+    })();
   }, []);
 
   const logout = useCallback(() => {

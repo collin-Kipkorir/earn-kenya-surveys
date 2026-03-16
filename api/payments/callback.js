@@ -1,4 +1,4 @@
-import { appendLog, readPayments, writePayments, generateId } from '../_lib.js';
+import { appendLog, readPayments, writePayments, generateId, upsertUser } from '../_lib.js';
 
 export default async function handler(req, res) {
   // CORS and preflight handling to match reference.
@@ -69,5 +69,26 @@ export default async function handler(req, res) {
 
   await writePayments(payments);
   await appendLog('info', 'Payment updated from callback', { paymentId: p.id, status: p.status, providerResponse: body });
+
+  // If payment succeeded, attempt to update/create a minimal server-side user record
+  if (isSuccess && p.userId) {
+    try {
+      const userUpdate = { id: p.userId };
+      if (p.purpose === 'activation') {
+        userUpdate.isActivated = true;
+        // give a small activation bonus, keep amount if provided
+        userUpdate.balance = (p.amount || 0) + 100;
+      } else if (p.purpose && p.purpose.startsWith('upgrade')) {
+        const parts = p.purpose.split(':');
+        const tier = parts[1] || 'premium';
+        userUpdate.tier = tier;
+        userUpdate.dailySurveyLimit = tier === 'gold' ? 10 : 5;
+      }
+      await upsertUser(userUpdate);
+      await appendLog('info', 'Upserted server user from callback', { userId: p.userId, userUpdate });
+    } catch (err) {
+      await appendLog('error', 'Failed to upsert user from callback', { err: String(err), paymentId: p.id });
+    }
+  }
   return res.json({ ok: true });
 }
