@@ -18,15 +18,16 @@ function shuffleArray<T>(arr: T[]): T[] {
 export default function SurveyListPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  if (!user) return null;
 
   const allSurveys = getSurveys();
+  // Shuffle surveys so tiers are mixed
+  const shuffledSurveys = useMemo(() => shuffleArray(allSurveys), [allSurveys.length]);
+
+  if (!user) return null;
+
   const limit = user.tier === 'gold' ? 25 : user.tier === 'premium' ? 10 : 3;
   const remaining = limit - user.surveysCompletedToday;
   const canTake = remaining > 0;
-
-  // Shuffle surveys so tiers are mixed
-  const shuffledSurveys = useMemo(() => shuffleArray(allSurveys), [allSurveys.length]);
 
   const isLocked = (s: Survey) => {
     if (s.tier === 'premium' && user.tier === 'free') return true;
