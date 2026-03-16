@@ -219,8 +219,9 @@ export function upgradeTier(userId: string, newTier: 'premium' | 'gold') {
   const user = getUserById(userId)!;
   const cost = newTier === 'premium' ? 100 : 150;
   const limit = newTier === 'premium' ? 10 : 25;
-  updateUser(userId, { tier: newTier, dailySurveyLimit: limit });
-  addTransaction({ userId, type: 'upgrade', amount: cost, status: 'completed', description: `Upgraded to ${newTier}` });
+  // Fee paid via STK push, NOT deducted from balance
+  updateUser(userId, { tier: newTier, dailySurveyLimit: limit, surveysCompletedToday: 0 });
+  addTransaction({ userId, type: 'upgrade', amount: cost, status: 'completed', description: `Upgraded to ${newTier} (paid via M-Pesa)` });
 }
 
 // Activation
