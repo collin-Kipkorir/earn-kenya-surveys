@@ -3,6 +3,9 @@
   "builds": [
     { "src": "package.json", "use": "@vercel/static-build" }
   ],
+  "functions": {
+    "api/**/*.js": { "runtime": "nodejs18.x" }
+  },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "^/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|webmanifest))$", "dest": "/$1" },
