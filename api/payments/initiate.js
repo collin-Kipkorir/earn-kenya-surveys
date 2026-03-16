@@ -18,41 +18,71 @@ export default async function handler(req, res) {
     providerResponse: null,
   };
 
-  const base = process.env.PAYHERO_BASE_URL;
-  const apiKey = process.env.PAYHERO_API_KEY;
-  const authToken = process.env.PAYHERO_AUTH_TOKEN;
-  const callbackUrl = process.env.PUBLIC_CALLBACK_URL || process.env.PAYHERO_CALLBACK_URL || `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}/api/payments/callback`;
+  // Use the working STK flow from the reference project.
+  const PAYHERO_BASE = process.env.PAYHERO_BASE_URL || 'https://api.payhero.co.ke';
+  const AUTH = process.env.PAYHERO_AUTH_TOKEN || process.env.PAYHERO_API_KEY || '';
+  const DEFAULT_CHANNEL_ID = process.env.PAYHERO_CHANNEL_ID;
 
-  if (base && (apiKey || authToken)) {
-    const accountId = process.env.PAYHERO_ACCOUNT_ID;
-    const channelId = process.env.PAYHERO_CHANNEL_ID;
+  if (AUTH && DEFAULT_CHANNEL_ID) {
     try {
       await appendLog('info', 'Initiating STK push', { paymentId: payment.id, userId, phone, amount, purpose });
+
+      // Normalize phone
+      let normPhone = String(phone).trim();
+      if (normPhone.startsWith('254')) normPhone = '0' + normPhone.slice(3);
+      else if (!normPhone.startsWith('0')) normPhone = '0' + normPhone;
+
+      // Build callback URL
+      const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host || '';
+      const forwardedProto = req.headers['x-forwarded-proto'] || 'https';
+      const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : '';
+      const CALLBACK_URL = process.env.PAYHERO_CALLBACK_URL || '';
+      const callback_url = CALLBACK_URL || (origin ? `${origin}/api/payments/callback` : '');
+
+      const channel_id = Number(req.body.channel_id || DEFAULT_CHANNEL_ID);
+      const external_reference = req.body.external_reference || req.body.accountReference || payment.id;
+      const customer_name = req.body.customer_name || req.body.customerName || 'Customer';
+
       const payload = {
-        phone,
-        amount,
-        accountReference: payment.id,
-        callbackUrl,
-        description: `Payment for ${payment.purpose} (user ${userId})`,
-        ...(accountId ? { accountId } : {}),
-        ...(channelId ? { channelId } : {}),
+        amount: Math.round(Number(amount)),
+        phone_number: normPhone,
+        channel_id: channel_id,
+        provider: 'm-pesa',
+        external_reference: external_reference,
+        customer_name: customer_name,
+        callback_url: callback_url,
       };
 
-      const headers = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = authToken;
-      else headers['Authorization'] = `Bearer ${apiKey}`;
+      // Prepare auth header (Basic expected by the working implementation)
+      const authHeader = AUTH.startsWith('Basic ') ? AUTH : `Basic ${AUTH}`;
 
-      const r = await fetch(`${base}/stk/push`, { method: 'POST', headers, body: JSON.stringify(payload) });
-      const j = await r.json().catch(() => null);
-      payment.providerResponse = { ok: r.ok, status: r.status, body: j };
-      await appendLog('info', 'Payhero response', { paymentId: payment.id, status: r.status, body: j });
-      if (j && (j.checkoutRequestID || j.data?.checkoutRequestID || j.requestId)) payment.providerRequestId = j.checkoutRequestID || j.data?.checkoutRequestID || j.requestId;
+      const url = `${PAYHERO_BASE}/api/v2/payments`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader, 'Accept': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await response.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        data = { raw: text };
+      }
+
+      payment.providerResponse = { ok: response.ok, status: response.status, body: data };
+      await appendLog('info', 'Payhero response', { paymentId: payment.id, status: response.status, body: data });
+
+      if (response.ok) {
+        payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || null;
+      }
     } catch (err) {
-      payment.providerResponse = { ok: false, error: String(err) };
+      payment.providerResponse = { ok: false, error: err && err.message ? err.message : String(err) };
       await appendLog('error', 'Exception while calling Payhero', { paymentId: payment.id, error: String(err) });
     }
   } else {
-    payment.providerResponse = { ok: false, error: 'PAYHERO_BASE_URL or PAYHERO_API_KEY not set on server' };
+    payment.providerResponse = { ok: false, error: 'Server misconfiguration: PAYHERO_AUTH_TOKEN or PAYHERO_CHANNEL_ID not set' };
     await appendLog('warn', 'Payhero credentials missing', { paymentId: payment.id });
   }
 
