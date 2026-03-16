@@ -11,12 +11,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({ user: null, refreshUser: () => {}, logout: () => {}, isLoggedIn: false });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // Initialize user synchronously from localStorage so consumers see the
+  // correct logged-in state on first render (prevents redirect-on-refresh).
+  const initialUser = (() => {
+    try {
+      const u = getCurrentUser();
+      if (u) checkDailyReset(u.id);
+      return u ? { ...u } : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [user, setUser] = useState<User | null>(initialUser);
 
   const refreshUser = useCallback(() => {
     const u = getCurrentUser();
     if (u) checkDailyReset(u.id);
-    setUser(u ? { ...getCurrentUser()! } : null);
+    setUser(u ? { ...u } : null);
   }, []);
 
   const logout = useCallback(() => {
