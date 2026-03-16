@@ -64,13 +64,14 @@ app.post('/api/payments/initiate', async (req, res) => {
   // NOTE: the exact request body/headers depend on Payhero's API — adapt according to their docs.
   const base = process.env.PAYHERO_BASE_URL;
   const apiKey = process.env.PAYHERO_API_KEY;
-  const callbackUrl = process.env.PUBLIC_CALLBACK_URL || `${req.protocol}://${req.get('host')}/api/payments/callback`;
+  const authToken = process.env.PAYHERO_AUTH_TOKEN; // could be 'Basic ...' or 'Bearer ...'
+  // Accept either PUBLIC_CALLBACK_URL or PAYHERO_CALLBACK_URL (Vercel env may use the latter)
+  const callbackUrl = process.env.PUBLIC_CALLBACK_URL || process.env.PAYHERO_CALLBACK_URL || `${req.protocol}://${req.get('host')}/api/payments/callback`;
 
-  if (base && apiKey) {
+  if (base && (apiKey || authToken)) {
     // read optional Payhero-specific envs
     const accountId = process.env.PAYHERO_ACCOUNT_ID;
     const channelId = process.env.PAYHERO_CHANNEL_ID;
-    const authToken = process.env.PAYHERO_AUTH_TOKEN; // could be 'Basic ...' or 'Bearer ...'
     try {
       await appendLog('info', 'Initiating STK push', { paymentId: payment.id, userId, phone, amount, purpose });
       // Example payload; change fields to match Payhero's API.
