@@ -78,16 +78,32 @@ export default async function handler(req, res) {
         data = { raw: text };
       }
 
-      // Normalize provider response and log
-      payment.providerResponse = { ok: response.ok, status: response.status, body: data };
-      await appendLog('info', 'Payhero response', { paymentId: payment.id, status: response.status, body: data });
+        // Normalize provider response and log
+        payment.providerResponse = { ok: response.ok, status: response.status, body: data };
+        await appendLog('info', 'Payhero response', { paymentId: payment.id, status: response.status, body: data });
 
-      if (response.ok) {
-        payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || null;
-      } else {
-        // If Payhero returned an error, surface it in the response body so client can show details
-        await appendLog('warn', 'Payhero returned non-OK status', { paymentId: payment.id, status: response.status, body: data });
-      }
+        // robustly extract provider request id/reference (case-insensitive and nested)
+        const findProviderRef = (obj) => {
+          if (!obj || typeof obj !== 'object') return null;
+          const candidates = [
+            'request_id','requestId','requestID','requestid',
+            'checkoutRequestID','CheckoutRequestID','CheckoutRequestId','checkoutRequestId','checkoutrequestid','checkout_request_id','Checkout_Request_ID',
+            'provider_request_id','providerRequestId','providerRequestID',
+            'reference','ref','external_reference','externalReference','external_reference',
+          ];
+          const map = {};
+          for (const k of Object.keys(obj)) map[k.toLowerCase()] = obj[k];
+          for (const c of candidates) {
+            const v = map[c.toLowerCase()];
+            if (v) return v;
+          }
+          return null;
+        };
+
+        let providerReq = findProviderRef(data) || findProviderRef(data.data) || findProviderRef(data.body) || findProviderRef(data.result) || null;
+        if (!providerReq && data && data.data && data.data.transaction) providerReq = findProviderRef(data.data.transaction);
+        if (providerReq) payment.providerRequestId = providerReq;
+        else if (!response.ok) await appendLog('warn', 'Payhero returned non-OK status', { paymentId: payment.id, status: response.status, body: data });
     } catch (err) {
       payment.providerResponse = { ok: false, error: err && err.message ? err.message : String(err) };
       await appendLog('error', 'Exception while calling Payhero', { paymentId: payment.id, error: String(err) });
