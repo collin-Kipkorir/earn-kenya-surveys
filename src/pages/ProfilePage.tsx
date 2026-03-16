@@ -59,25 +59,56 @@ export default function ProfilePage() {
         toast.success('STK push initiated. Please complete the payment on your phone.');
         setShowActivateModal(false);
 
-        // poll for status
+        // poll for status — first poll the local payment record until we have a providerRequestId,
+        // then poll the Payhero status proxy for quicker resolution.
         const start = Date.now();
         const timeoutMs = 2 * 60 * 1000; // 2 minutes
+        let providerRequestId: string | null = null;
         let status = 'pending';
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
-          const sresp = await fetch(`${apiBase}/api/payments/${paymentId}`);
-          if (!sresp.ok) continue;
-          const data = await sresp.json();
-          status = data.status;
-          if (status === 'success') {
-            activateAccount(user.id);
-            refreshUser();
-            toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
-            return;
-          }
-          if (status === 'failed') {
-            toast.error('Payment failed. Please try again.');
-            return;
+
+          try {
+            if (providerRequestId) {
+              // poll Payhero via our status proxy
+              const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
+              if (!sresp.ok) continue;
+              const pdata = await sresp.json();
+              const txStatus = pdata.status || pdata.result || pdata.resultCode || pdata.data?.status || (pdata.data && pdata.data.transaction && pdata.data.transaction.status) || 'unknown';
+              const s = String(txStatus).toLowerCase();
+              const successKeywords = ['success', '0', 'completed', 'ok'];
+              const isSuccess = successKeywords.some(k => s === k || s.includes(k));
+              if (isSuccess) {
+                activateAccount(user.id);
+                refreshUser();
+                toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                return;
+              }
+              if (s && !['pending', 'unknown'].includes(s)) {
+                toast.error('Payment failed. Please try again.');
+                return;
+              }
+            } else {
+              // poll the local payment record
+              const sresp = await fetch(`${base}/payments/${paymentId}`);
+              if (!sresp.ok) continue;
+              const data = await sresp.json();
+              providerRequestId = data.providerRequestId || null;
+              status = data.status;
+              if (status === 'success') {
+                activateAccount(user.id);
+                refreshUser();
+                toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                return;
+              }
+              if (status === 'failed') {
+                toast.error('Payment failed. Please try again.');
+                return;
+              }
+            }
+          } catch (err) {
+            // ignore and retry until timeout
+            console.debug('Polling error', err);
           }
         }
         toast.error('Payment timed out. If you paid but were not activated, contact support.');

@@ -57,20 +57,46 @@ export default function UpgradePage() {
 
         const start = Date.now();
         const timeoutMs = 2 * 60 * 1000;
+        let providerRequestId: string | null = null;
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
-    const sresp = await fetch(`${base}/payments/${paymentId}`);
-          if (!sresp.ok) continue;
-          const data = await sresp.json();
-          if (data.status === 'success') {
-            upgradeTier(user.id, tier);
-            refreshUser();
-            toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
-            return;
-          }
-          if (data.status === 'failed') {
-            toast.error('Payment failed. Please try again.');
-            return;
+          try {
+            if (providerRequestId) {
+              const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
+              if (!sresp.ok) continue;
+              const pdata = await sresp.json();
+              const txStatus = pdata.status || pdata.result || pdata.resultCode || pdata.data?.status || (pdata.data && pdata.data.transaction && pdata.data.transaction.status) || 'unknown';
+              const s = String(txStatus).toLowerCase();
+              const successKeywords = ['success', '0', 'completed', 'ok'];
+              const isSuccess = successKeywords.some(k => s === k || s.includes(k));
+              if (isSuccess) {
+                upgradeTier(user.id, tier);
+                refreshUser();
+                toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+                return;
+              }
+              if (s && !['pending', 'unknown'].includes(s)) {
+                toast.error('Payment failed. Please try again.');
+                return;
+              }
+            } else {
+              const sresp = await fetch(`${base}/payments/${paymentId}`);
+              if (!sresp.ok) continue;
+              const data = await sresp.json();
+              providerRequestId = data.providerRequestId || null;
+              if (data.status === 'success') {
+                upgradeTier(user.id, tier);
+                refreshUser();
+                toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+                return;
+              }
+              if (data.status === 'failed') {
+                toast.error('Payment failed. Please try again.');
+                return;
+              }
+            }
+          } catch (err) {
+            console.debug('Polling error', err);
           }
         }
         toast.error('Payment timed out. If you paid but were not upgraded, contact support.');
