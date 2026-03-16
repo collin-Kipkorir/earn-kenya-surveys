@@ -32,8 +32,8 @@ export default function AdBanner({ show, onDismiss, inline = false }: AdBannerPr
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex-1">
                   <p className="text-xs font-medium opacity-80 mb-1">Sponsored</p>
-                  <h3 className="text-lg font-display font-bold text-foreground">Uwezo Funds</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Access business funding and grow your hustle. Apply for Uwezo Fund today!</p>
+                  <h3 className="text-lg font-display font-bold text-foreground">Nyota Funds</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Access capital to grow your business. Apply for Nyota Funds today!</p>
                 </div>
                 <div className="flex-shrink-0">
                   <a
@@ -78,9 +78,9 @@ export default function AdBanner({ show, onDismiss, inline = false }: AdBannerPr
                 <X className="w-4 h-4" />
               </button>
               <p className="text-xs font-medium opacity-80 mb-1">Sponsored</p>
-              <h3 className="text-xl font-display font-bold">Uwezo Funds</h3>
+              <h3 className="text-xl font-display font-bold">Nyota Funds</h3>
               <p className="text-sm opacity-90 mt-1">
-                Access business funding and grow your hustle. Apply for Uwezo Fund today!
+                Access capital to grow your business. Apply for Nyota Funds today!
               </p>
             </div>
 
