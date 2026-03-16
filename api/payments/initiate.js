@@ -1,6 +1,13 @@
 import { appendLog, readPayments, writePayments, generateId } from '../_lib.js';
 
 export default async function handler(req, res) {
+  // CORS headers similar to reference implementation so browser clients can call this directly.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { userId, phone, amount, purpose } = req.body || {};
@@ -71,11 +78,15 @@ export default async function handler(req, res) {
         data = { raw: text };
       }
 
+      // Normalize provider response and log
       payment.providerResponse = { ok: response.ok, status: response.status, body: data };
       await appendLog('info', 'Payhero response', { paymentId: payment.id, status: response.status, body: data });
 
       if (response.ok) {
         payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || null;
+      } else {
+        // If Payhero returned an error, surface it in the response body so client can show details
+        await appendLog('warn', 'Payhero returned non-OK status', { paymentId: payment.id, status: response.status, body: data });
       }
     } catch (err) {
       payment.providerResponse = { ok: false, error: err && err.message ? err.message : String(err) };
