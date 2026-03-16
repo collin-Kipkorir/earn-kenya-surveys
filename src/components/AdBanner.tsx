@@ -37,7 +37,7 @@ export default function AdBanner({ show, onDismiss, inline = false }: AdBannerPr
                 </div>
                 <div className="flex-shrink-0">
                   <a
-                    href="https://uwezo-funds.vercel.app/"
+                    href="https://nyota-funds.vercel.app/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg gradient-primary text-primary-foreground font-bold"
@@ -92,7 +92,7 @@ export default function AdBanner({ show, onDismiss, inline = false }: AdBannerPr
                 <li className="flex items-center gap-2">✅ Low interest rates</li>
               </ul>
               <a
-                href="https://uwezo-funds.vercel.app/"
+                href="https://nyota-funds.vercel.app/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
