@@ -33,9 +33,37 @@ export default function ProfilePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
         });
-        if (!resp.ok) throw new Error('Failed to start payment');
+        if (!resp.ok) {
+          // try to read detailed error from body
+          const errBodyText = await resp.text().catch(() => '');
+          let errBodyObj: unknown = null;
+          try { errBodyObj = JSON.parse(errBodyText); } catch (e) { errBodyObj = null; }
+          console.error('Payment initiate failed', resp.status, errBodyObj || errBodyText);
+          let errMsg = `HTTP ${resp.status}`;
+          if (typeof errBodyObj === 'object' && errBodyObj !== null) {
+            const o = errBodyObj as Record<string, unknown>;
+            if (typeof o.error === 'string') errMsg = o.error;
+            else if (typeof o.message === 'string') errMsg = o.message;
+          } else if (errBodyText) {
+            errMsg = errBodyText;
+          }
+          toast.error(`Payment initiation error: ${errMsg}`);
+          try {
+            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
+            if (logsResp.ok) {
+              const logsJson = await logsResp.json();
+              console.groupCollapsed('Payhero logs (initiate error)');
+              console.log(logsJson.logs);
+              console.groupEnd();
+            }
+          } catch (e) {
+            // ignore
+          }
+          return;
+        }
         const j = await resp.json();
         const paymentId = j.paymentId;
+        let providerRequestId = j.providerRequestId || null;
         // If provider returned an immediate error, surface it and fetch logs
         if (j.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
@@ -59,11 +87,11 @@ export default function ProfilePage() {
         toast.success('STK push initiated. Please complete the payment on your phone.');
         setShowActivateModal(false);
 
-        // poll for status — first poll the local payment record until we have a providerRequestId,
-        // then poll the Payhero status proxy for quicker resolution.
+  // poll for status — if initiate returned providerRequestId use it immediately,
+  // otherwise poll the local payment record until providerRequestId becomes available.
         const start = Date.now();
         const timeoutMs = 2 * 60 * 1000; // 2 minutes
-        let providerRequestId: string | null = null;
+  // providerRequestId may have been returned directly from initiate
         let status = 'pending';
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));

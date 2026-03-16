@@ -32,9 +32,36 @@ export default function UpgradePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
         });
-        if (!resp.ok) throw new Error('Failed to start payment');
+        if (!resp.ok) {
+          const errBodyText = await resp.text().catch(() => '');
+          let errBodyObj: unknown = null;
+          try { errBodyObj = JSON.parse(errBodyText); } catch (e) { errBodyObj = null; }
+          console.error('Payment initiate failed', resp.status, errBodyObj || errBodyText);
+          let errMsg = `HTTP ${resp.status}`;
+          if (typeof errBodyObj === 'object' && errBodyObj !== null) {
+            const o = errBodyObj as Record<string, unknown>;
+            if (typeof o.error === 'string') errMsg = o.error;
+            else if (typeof o.message === 'string') errMsg = o.message;
+          } else if (errBodyText) {
+            errMsg = errBodyText;
+          }
+          toast.error(`Payment initiation error: ${errMsg}`);
+          try {
+            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
+            if (logsResp.ok) {
+              const logsJson = await logsResp.json();
+              console.groupCollapsed('Payhero logs (initiate error)');
+              console.log(logsJson.logs);
+              console.groupEnd();
+            }
+          } catch (e) {
+            // ignore
+          }
+          return;
+        }
         const j = await resp.json();
         const paymentId = j.paymentId;
+        let providerRequestId = j.providerRequestId || null;
         if (j.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
           toast.error(`Payment initiation error: ${errMsg}`);
