@@ -75,32 +75,38 @@ app.post('/api/payments/initiate', async (req, res) => {
     try {
       await appendLog('info', 'Initiating STK push', { paymentId: payment.id, userId, phone, amount, purpose });
       // Example payload; change fields to match Payhero's API.
+      // Build payload matching Payhero v2 payments endpoint
       const payload = {
-        phone,
         amount,
-        accountReference: payment.id,
-        callbackUrl,
-        description: `Payment for ${payment.purpose} (user ${userId})`,
-        // include optional account/channel if provided by Payhero
-        ...(accountId ? { accountId } : {}),
-        ...(channelId ? { channelId } : {}),
+        phone_number: phone,
+        external_reference: payment.id,
+        customer_name: `user:${userId}`,
+        callback_url: callbackUrl,
+        provider: 'm-pesa',
+        // include optional channel/account if provided
+        ...(channelId ? { channel_id: channelId } : {}),
       };
 
       const headers = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = authToken;
-      else headers['Authorization'] = `Bearer ${apiKey}`;
+      // Support a few auth styles: full header string, or api key as Bearer
+      if (authToken) {
+        headers['Authorization'] = authToken;
+      } else if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
 
-      const r = await fetch(`${base}/stk/push`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
-      const j = await r.json().catch(() => null);
+      // Use Payhero v2 payments endpoint (working implementation uses /api/v2/payments)
+      const endpoint = base.endsWith('/') ? `${base}api/v2/payments` : `${base}/api/v2/payments`;
+      const r = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(payload) });
+      let j = null;
+      try { j = await r.json(); } catch (e) { j = null; }
       payment.providerResponse = { ok: r.ok, status: r.status, body: j };
-      await appendLog('info', 'Payhero response', { paymentId: payment.id, status: r.status, body: j });
-      // Optionally, store provider's checkout/request id if any
-      if (j && (j.checkoutRequestID || j.data?.checkoutRequestID || j.requestId)) {
-        payment.providerRequestId = j.checkoutRequestID || j.data?.checkoutRequestID || j.requestId;
+      await appendLog('info', 'Payhero response', { paymentId: payment.id, status: r.status, body: j, endpoint });
+
+      // store provider's request/reference id if present in response
+      if (j) {
+        const providerReq = j.request_id || j.data?.request_id || j.requestId || j.checkoutRequestID || j.provider_request_id || j.data?.provider_request_id || j.external_reference || j.reference;
+        if (providerReq) payment.providerRequestId = providerReq;
       }
     } catch (err) {
       payment.providerResponse = { ok: false, error: String(err) };
