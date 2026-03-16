@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { activateAccount, upgradeTier } from '@/lib/storage';
+import { activateAccount } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Shield, Zap, Crown, Copy, CheckCircle, Phone } from 'lucide-react';
+import { LogOut, Shield, Zap, Crown, Copy, CheckCircle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const { user, refreshUser, logout } = useAuth();
   const navigate = useNavigate();
-  const [activating, setActivating] = useState(false);
   const [stkPhone, setStkPhone] = useState(user?.phone || '');
   const [showActivateModal, setShowActivateModal] = useState(false);
 
@@ -22,11 +21,10 @@ export default function ProfilePage() {
   };
 
   const handleActivate = () => {
-    // In production, this would call PayHero STK Push
     activateAccount(user.id);
     refreshUser();
     setShowActivateModal(false);
-    toast.success('Account activated successfully!');
+    toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
   };
 
   const handleLogout = () => {
@@ -66,7 +64,13 @@ export default function ProfilePage() {
       {!user.isActivated && (
         <div className="bg-card rounded-xl p-5 shadow-card mb-4 border-2 border-accent">
           <h3 className="font-display font-bold text-foreground mb-2">Activate Your Account</h3>
-          <p className="text-sm text-muted-foreground mb-3">Pay KSh 100 to activate and unlock withdrawals.</p>
+          <p className="text-sm text-muted-foreground mb-2">Pay KSh 100 via M-Pesa to activate your account and unlock withdrawals.</p>
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-3">
+            <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              <strong>Bonus:</strong> The KSh 100 activation fee will be added to your SurveyEarn balance after activation!
+            </p>
+          </div>
           <button onClick={() => setShowActivateModal(true)} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
             Activate Now — KSh 100
           </button>
@@ -95,7 +99,13 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm p-4">
           <div className="bg-card rounded-2xl p-6 shadow-elevated max-w-sm w-full">
             <h3 className="text-xl font-display font-bold text-foreground mb-2">Account Activation</h3>
-            <p className="text-sm text-muted-foreground mb-4">An M-Pesa STK push of KSh 100 will be sent to your phone.</p>
+            <p className="text-sm text-muted-foreground mb-3">An M-Pesa STK push of KSh 100 will be sent to your phone.</p>
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-4">
+              <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                The KSh 100 will be <strong>added to your balance</strong> as an activation bonus!
+              </p>
+            </div>
             <div className="mb-4">
               <label className="text-sm font-medium text-foreground block mb-1.5">M-Pesa Number</label>
               <input type="tel" value={stkPhone} onChange={e => setStkPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none" />

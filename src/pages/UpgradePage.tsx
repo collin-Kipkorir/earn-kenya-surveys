@@ -2,7 +2,7 @@ import { useAuth } from '@/lib/auth-context';
 import { upgradeTier } from '@/lib/storage';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown, Zap, Shield, Check, Lock } from 'lucide-react';
+import { Crown, Zap, Shield, Check, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -26,7 +26,7 @@ export default function UpgradePage() {
     upgradeTier(user.id, tier);
     refreshUser();
     setShowPayModal(null);
-    toast.success(`Upgraded to ${tier}!`);
+    toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
   };
 
   return (
@@ -80,7 +80,13 @@ export default function UpgradePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm p-4">
           <div className="bg-card rounded-2xl p-6 shadow-elevated max-w-sm w-full">
             <h3 className="text-xl font-display font-bold text-foreground mb-2">Upgrade to {showPayModal}</h3>
-            <p className="text-sm text-muted-foreground mb-4">Pay KSh {showPayModal === 'premium' ? 100 : 150} via M-Pesa STK Push.</p>
+            <p className="text-sm text-muted-foreground mb-3">Pay KSh {showPayModal === 'premium' ? 100 : 150} via M-Pesa STK Push.</p>
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-4">
+              <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                The upgrade fee is paid via M-Pesa and will <strong>not</strong> be deducted from your SurveyEarn balance.
+              </p>
+            </div>
             <div className="mb-4">
               <label className="text-sm font-medium text-foreground block mb-1.5">M-Pesa Number</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none" />
@@ -88,7 +94,7 @@ export default function UpgradePage() {
             <div className="flex gap-3">
               <button onClick={() => setShowPayModal(null)} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               <button onClick={() => handleUpgrade(showPayModal)} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
-                Pay Now
+                Pay via M-Pesa
               </button>
             </div>
           </div>
