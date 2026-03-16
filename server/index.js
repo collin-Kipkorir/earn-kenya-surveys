@@ -105,7 +105,26 @@ app.post('/api/payments/initiate', async (req, res) => {
 
       // store provider's request/reference id if present in response
       if (j) {
-        const providerReq = j.request_id || j.data?.request_id || j.requestId || j.checkoutRequestID || j.provider_request_id || j.data?.provider_request_id || j.external_reference || j.reference;
+        const findProviderRef = (obj) => {
+          if (!obj || typeof obj !== 'object') return null;
+          const candidates = [
+            'request_id','requestId','requestID','requestid',
+            'checkoutRequestID','CheckoutRequestID','CheckoutRequestId','checkoutRequestId','checkoutrequestid',
+            'provider_request_id','providerRequestId','providerRequestID',
+            'reference','ref','external_reference','externalReference','external_reference',
+          ];
+          const map = {};
+          for (const k of Object.keys(obj)) map[k.toLowerCase()] = obj[k];
+          for (const c of candidates) {
+            const v = map[c.toLowerCase()];
+            if (v) return v;
+          }
+          return null;
+        };
+
+        let providerReq = findProviderRef(j) || findProviderRef(j.data) || findProviderRef(j.body) || findProviderRef(j.result) || null;
+        // as a last resort, check nested data.transaction
+        if (!providerReq && j.data && j.data.transaction) providerReq = findProviderRef(j.data.transaction);
         if (providerReq) payment.providerRequestId = providerReq;
       }
     } catch (err) {
