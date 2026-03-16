@@ -82,9 +82,8 @@ export default function UpgradePage() {
         toast.success('STK push initiated. Please complete the payment on your phone.');
         setShowPayModal(null);
 
-        const start = Date.now();
-        const timeoutMs = 2 * 60 * 1000;
-        let providerRequestId: string | null = null;
+  const start = Date.now();
+  const timeoutMs = 2 * 60 * 1000;
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
           try {
