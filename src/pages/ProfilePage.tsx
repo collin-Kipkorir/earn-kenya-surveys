@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { activateAccount } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
@@ -21,10 +21,70 @@ export default function ProfilePage() {
   };
 
   const handleActivate = () => {
-    activateAccount(user.id);
-    refreshUser();
-    setShowActivateModal(false);
-    toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+    // Start payment flow via backend server which will call Payhero and receive callback.
+    // The server will return a paymentId which we poll for status. Only after status === 'success'
+    // do we activate the user locally.
+    (async () => {
+      try {
+        const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:4000';
+        const resp = await fetch(`${apiBase}/api/payments/initiate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+        });
+        if (!resp.ok) throw new Error('Failed to start payment');
+        const j = await resp.json();
+        const paymentId = j.paymentId;
+        // If provider returned an immediate error, surface it and fetch logs
+        if (j.providerResponse && j.providerResponse.ok === false) {
+          const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
+          toast.error(`Payment initiation error: ${errMsg}`);
+          try {
+            const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:4000';
+            const logsResp = await fetch(`${apiBase}/api/payments/logs?limit=50`);
+            if (logsResp.ok) {
+              const logsJson = await logsResp.json();
+              console.groupCollapsed('Payhero logs (initiate error)');
+              console.log(logsJson.logs);
+              console.groupEnd();
+            }
+          } catch (e) {
+            // ignore
+          }
+          return;
+        }
+        if (!paymentId) throw new Error('No payment id returned');
+        toast.success('STK push initiated. Please complete the payment on your phone.');
+        setShowActivateModal(false);
+
+        // poll for status
+        const start = Date.now();
+        const timeoutMs = 2 * 60 * 1000; // 2 minutes
+        let status = 'pending';
+        while (Date.now() - start < timeoutMs) {
+          await new Promise(r => setTimeout(r, 2000));
+          const sresp = await fetch(`${apiBase}/api/payments/${paymentId}`);
+          if (!sresp.ok) continue;
+          const data = await sresp.json();
+          status = data.status;
+          if (status === 'success') {
+            activateAccount(user.id);
+            refreshUser();
+            toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+            return;
+          }
+          if (status === 'failed') {
+            toast.error('Payment failed. Please try again.');
+            return;
+          }
+        }
+        toast.error('Payment timed out. If you paid but were not activated, contact support.');
+      } catch (err) {
+        console.error(err);
+        const msg = (err as unknown as { message?: string })?.message || 'Payment initiation failed';
+        toast.error(msg);
+      }
+    })();
   };
 
   const handleLogout = () => {

@@ -23,10 +23,61 @@ export default function UpgradePage() {
   const tierOrder = { free: 0, premium: 1, gold: 2 };
 
   const handleUpgrade = (tier: 'premium' | 'gold') => {
-    upgradeTier(user.id, tier);
-    refreshUser();
-    setShowPayModal(null);
-    toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+    (async () => {
+      try {
+        const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:4000';
+        const resp = await fetch(`${apiBase}/api/payments/initiate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+        });
+        if (!resp.ok) throw new Error('Failed to start payment');
+        const j = await resp.json();
+        const paymentId = j.paymentId;
+        if (j.providerResponse && j.providerResponse.ok === false) {
+          const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
+          toast.error(`Payment initiation error: ${errMsg}`);
+          try {
+            const logsResp = await fetch(`${apiBase}/api/payments/logs?limit=50`);
+            if (logsResp.ok) {
+              const logsJson = await logsResp.json();
+              console.groupCollapsed('Payhero logs (initiate error)');
+              console.log(logsJson.logs);
+              console.groupEnd();
+            }
+          } catch (e) {
+            // ignore
+          }
+          return;
+        }
+        if (!paymentId) throw new Error('No payment id returned');
+        toast.success('STK push initiated. Please complete the payment on your phone.');
+        setShowPayModal(null);
+
+        const start = Date.now();
+        const timeoutMs = 2 * 60 * 1000;
+        while (Date.now() - start < timeoutMs) {
+          await new Promise(r => setTimeout(r, 2000));
+          const sresp = await fetch(`${apiBase}/api/payments/${paymentId}`);
+          if (!sresp.ok) continue;
+          const data = await sresp.json();
+          if (data.status === 'success') {
+            upgradeTier(user.id, tier);
+            refreshUser();
+            toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+            return;
+          }
+          if (data.status === 'failed') {
+            toast.error('Payment failed. Please try again.');
+            return;
+          }
+        }
+        toast.error('Payment timed out. If you paid but were not upgraded, contact support.');
+      } catch (err) {
+        const msg = (err as unknown as { message?: string })?.message || 'Payment initiation failed';
+        toast.error(msg);
+      }
+    })();
   };
 
   return (
