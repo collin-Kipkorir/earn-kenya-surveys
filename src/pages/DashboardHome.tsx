@@ -87,22 +87,30 @@ export default function DashboardHome() {
 }
 
 function InlineAd() {
-  const [dismissed, setDismissed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('surveyearn_ad_dismissed') === '1';
-    } catch {
-      return false;
-    }
-  });
+  // Do NOT persist dismissal to localStorage so the ad reappears after a
+  // full page refresh. Keep dismissal only in-memory for the current
+  // SPA session; also reshow when the user returns to the tab (visibility/focus).
+  const [dismissed, setDismissed] = useState<boolean>(false);
 
   useEffect(() => {
-    try {
-      if (dismissed) localStorage.setItem('surveyearn_ad_dismissed', '1');
-      else localStorage.removeItem('surveyearn_ad_dismissed');
-    } catch (err) {
-      // ignore storage errors (private mode, quota, etc.)
-    }
-  }, [dismissed]);
+    // Ensure ad displays on mount
+    setDismissed(false);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setDismissed(false);
+      }
+    };
+    const onFocus = () => setDismissed(false);
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   if (dismissed) return null;
 
