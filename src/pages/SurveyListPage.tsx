@@ -3,14 +3,28 @@ import { getAvailableSurveys, getSurveys, Survey } from '@/lib/storage';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, CheckCircle, ArrowRight, Crown, Zap, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
+
+// Seeded shuffle to keep order stable per session but mixed across tiers
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 
 export default function SurveyListPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  if (!user) return null;
 
   const allSurveys = getSurveys();
-  const available = getAvailableSurveys(user);
+  // Shuffle surveys so tiers are mixed
+  const shuffledSurveys = useMemo(() => shuffleArray(allSurveys), [allSurveys.length]);
+
+  if (!user) return null;
+
   const limit = user.tier === 'gold' ? 25 : user.tier === 'premium' ? 10 : 3;
   const remaining = limit - user.surveysCompletedToday;
   const canTake = remaining > 0;
@@ -30,13 +44,13 @@ export default function SurveyListPage() {
       <p className="text-sm text-muted-foreground mb-6">{remaining > 0 ? `${remaining} surveys remaining today` : 'Daily limit reached. Come back tomorrow!'}</p>
 
       <div className="space-y-3">
-        {allSurveys.map((survey, i) => {
+        {shuffledSurveys.map((survey, i) => {
           const locked = isLocked(survey);
           const completed = isCompleted(survey);
           const TierIcon = tierIcon(survey.tier);
 
           return (
-            <motion.div key={survey.id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.05 }}>
+            <motion.div key={survey.id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.03 }}>
               {locked ? (
                 <div onClick={() => navigate('/dashboard/upgrade')} className="bg-card rounded-xl p-4 shadow-card opacity-60 relative overflow-hidden cursor-pointer hover:opacity-75 transition-opacity">
                   <div className="absolute inset-0 bg-muted/30 backdrop-blur-[1px] flex items-center justify-center z-10">

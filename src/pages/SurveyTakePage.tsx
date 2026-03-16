@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { CheckCircle, ArrowLeft } from 'lucide-react';
+import AdBanner from '@/components/AdBanner';
+import { useAdManager } from '@/hooks/useAdManager';
 
 export default function SurveyTakePage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +18,7 @@ export default function SurveyTakePage() {
   const [textInput, setTextInput] = useState('');
   const [completed, setCompleted] = useState(false);
   const [reward, setReward] = useState(0);
+  const { showAd, triggerAd, dismissAd } = useAdManager();
 
   if (!survey || !user) return null;
 
@@ -35,6 +38,10 @@ export default function SurveyTakePage() {
         setCompleted(true);
         refreshUser();
         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+        // Show ad after completing free tier surveys
+        if (survey.tier === 'free') {
+          setTimeout(() => triggerAd(), 2000);
+        }
       } catch (err: any) {
         alert(err.message);
         navigate('/dashboard/surveys');
@@ -61,6 +68,7 @@ export default function SurveyTakePage() {
             More Surveys
           </button>
         </motion.div>
+        <AdBanner show={showAd} onDismiss={dismissAd} />
       </div>
     );
   }
