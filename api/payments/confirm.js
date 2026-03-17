@@ -33,9 +33,24 @@ export default async function handler(req, res) {
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { raw: text }; }
 
-    // Determine account/reference and transaction status from provider response
-    const accountReference = data.accountReference || data.external_reference || data.reference || data.request_id || data.requestId || data.CheckoutRequestID || data.checkout_request_id || data.checkoutRequestID || data.data?.accountReference || data.metadata?.accountReference || null;
-    const transactionStatus = data.status || data.result || data.resultCode || data.data?.status || (data.data && data.data.transaction && data.data.transaction.status) || 'unknown';
+    // Determine account/reference and transaction status from provider response (follow Payhero docs)
+    const accountReference = data.accountReference
+      || data.external_reference
+      || data.reference
+      || data.provider_reference
+      || data.third_party_reference
+      || data.payment_reference
+      || data.request_id
+      || data.requestId
+      || data.CheckoutRequestID
+      || data.checkout_request_id
+      || data.checkoutRequestID
+      || data.data?.accountReference
+      || data.metadata?.accountReference
+      || null;
+
+    // transaction status: prefer explicit boolean `success`, otherwise inspect status fields
+    const transactionStatus = (typeof data.success === 'boolean') ? (data.success ? 'SUCCESS' : 'FAILED') : (data.status || data.result || data.resultCode || data.data?.status || (data.data && data.data.transaction && data.data.transaction.status) || 'unknown');
 
     // If provider returned its authoritative reference in the status response, persist mapping
     try {
@@ -48,9 +63,10 @@ export default async function handler(req, res) {
       console.error('Failed to persist reference mapping from confirm', e);
     }
 
-    const s = String(transactionStatus).toLowerCase();
-    const successKeywords = ['success', '0', 'completed', 'ok'];
-    const isSuccess = successKeywords.some(k => s === k || s.includes(k));
+  const s = String(transactionStatus).toLowerCase();
+  const successKeywords = ['success', '0', 'completed', 'ok'];
+  const isSuccess = (data.success === true) || successKeywords.some(k => s === k || s.includes(k));
+  const isQueued = s === 'queued' || s.includes('queued');
 
     const payments = await readPayments();
     let p = payments.find(x =>
@@ -67,7 +83,7 @@ export default async function handler(req, res) {
         phone: phone || null,
         amount: amount || 0,
         purpose: purpose || 'activation',
-        status: isSuccess ? 'success' : 'failed',
+        status: isSuccess ? 'success' : (isQueued ? 'pending' : 'failed'),
         createdAt: new Date().toISOString(),
         providerResponse: data,
         providerRequestId: lookup,
@@ -76,7 +92,7 @@ export default async function handler(req, res) {
       await writePayments(payments);
       await appendLog('info', 'Payment confirmed and saved', { paymentId: p.id, status: p.status, lookup, providerResponseSummary: { ok: response.ok, status: response.status } });
     } else {
-      p.status = isSuccess ? 'success' : 'failed';
+  p.status = isSuccess ? 'success' : (isQueued ? 'pending' : 'failed');
       p.providerResponse = data;
       p.providerRequestId = p.providerRequestId || lookup;
       p.updatedAt = new Date().toISOString();
