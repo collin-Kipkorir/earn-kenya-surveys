@@ -1,4 +1,4 @@
-import { appendLog, readPayments, writePayments, generateId } from '../_lib.js';
+import { /* appendLog, readPayments, writePayments, */ generateId } from '../_lib.js';
 
 export default async function handler(req, res) {
   // CORS headers similar to reference implementation so browser clients can call this directly.
@@ -78,28 +78,21 @@ export default async function handler(req, res) {
         data = { raw: text };
       }
 
-      // Normalize provider response and log
+      // Normalize provider response (do not persist or write logs at initiate time)
       payment.providerResponse = { ok: response.ok, status: response.status, body: data };
-      await appendLog('info', 'Payhero response', { paymentId: payment.id, status: response.status, body: data });
 
       if (response.ok) {
-        payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || null;
+        payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || data.CheckoutRequestID || null;
       } else {
-        // If Payhero returned an error, surface it in the response body so client can show details
-        await appendLog('warn', 'Payhero returned non-OK status', { paymentId: payment.id, status: response.status, body: data });
+        // Non-OK status returned; will be surfaced to client in the response
       }
     } catch (err) {
       payment.providerResponse = { ok: false, error: err && err.message ? err.message : String(err) };
-      await appendLog('error', 'Exception while calling Payhero', { paymentId: payment.id, error: String(err) });
     }
   } else {
     payment.providerResponse = { ok: false, error: 'Server misconfiguration: PAYHERO_AUTH_TOKEN or PAYHERO_CHANNEL_ID not set' };
-    await appendLog('warn', 'Payhero credentials missing', { paymentId: payment.id });
   }
 
-  payments.push(payment);
-  await writePayments(payments);
-  await appendLog('info', 'Payment record created', { paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null });
-  // Debug: include full payment object so clients can inspect providerResponse and providerRequestId
+  // Do not persist initiation attempt. Return transient payment info to client.
   return res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null, payment });
 }
