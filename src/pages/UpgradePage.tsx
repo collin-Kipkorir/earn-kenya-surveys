@@ -115,6 +115,7 @@ export default function UpgradePage() {
                       refreshUser();
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
+                      setShowPayModal(null);
                       toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                       return;
                     } else {
@@ -163,6 +164,7 @@ export default function UpgradePage() {
                       refreshUser();
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
+                      setShowPayModal(null);
                       toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                       return;
                     }
@@ -175,6 +177,7 @@ export default function UpgradePage() {
                 refreshUser();
                 setIsProcessing(false);
                 setCurrentPaymentId(null);
+                setShowPayModal(null);
                 toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                 return;
               }

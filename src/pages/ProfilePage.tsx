@@ -126,6 +126,7 @@ export default function ProfilePage() {
                       refreshUser();
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
+                      setShowActivateModal(false);
                       toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                       return;
                     } else {
@@ -175,6 +176,7 @@ export default function ProfilePage() {
                       refreshUser();
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
+                      setShowActivateModal(false);
                       toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                       return;
                     }
@@ -187,6 +189,7 @@ export default function ProfilePage() {
                 refreshUser();
                 setIsProcessing(false);
                 setCurrentPaymentId(null);
+                setShowActivateModal(false);
                 toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                 return;
               }
