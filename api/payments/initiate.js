@@ -1,4 +1,4 @@
-import { /* appendLog, readPayments, writePayments, */ generateId, setReferenceMapping } from '../_lib.js';
+import { appendLog, /* readPayments, writePayments, */ generateId, setReferenceMapping } from '../_lib.js';
 
 export default async function handler(req, res) {
   // top-level invocation guard: catch runtime errors and return helpful JSON
@@ -95,16 +95,20 @@ export default async function handler(req, res) {
             const provRef = data.reference || data.data?.reference || null;
             if (provRef && external_reference) {
               await setReferenceMapping(external_reference, provRef);
+              try { await appendLog('info', 'Persisted reference mapping', { external_reference, providerReference: provRef, paymentId: payment.id }); } catch (e) { /* ignore */ }
             }
           } catch (e) {
             // non-fatal mapping failure
             console.error('Failed to persist reference mapping', e);
+            try { await appendLog('error', 'Failed to persist reference mapping', { err: String(e), paymentId: payment.id, external_reference }); } catch (e2) { /* ignore */ }
           }
         } else {
           // Non-OK status returned; will be surfaced to client in the response
+          try { await appendLog('error', 'Payhero initiate returned non-OK', { status: response.status, body: data, external_reference, paymentId: payment.id }); } catch (e) { /* ignore */ }
         }
       } catch (err) {
         payment.providerResponse = { ok: false, error: err && err.message ? err.message : String(err) };
+        try { await appendLog('error', 'Initiate handler fetch failed', { err: String(err), paymentId: payment.id, external_reference }); } catch (e) { /* ignore */ }
       }
     } else {
       payment.providerResponse = { ok: false, error: 'Server misconfiguration: PAYHERO_AUTH_TOKEN or PAYHERO_CHANNEL_ID not set' };
