@@ -1,4 +1,4 @@
-import { readPayments } from '../../_lib.js';
+import { readPayments } from '../_lib.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
