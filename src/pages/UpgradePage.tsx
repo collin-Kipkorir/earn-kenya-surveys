@@ -69,7 +69,7 @@ export default function UpgradePage() {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
           toast.error(`Payment initiation error: ${errMsg}`);
           try {
-            const logsResp = await fetch(`${apiBase}/api/payments/logs?limit=50`);
+            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
             if (logsResp.ok) {
               const logsJson = await logsResp.json();
               console.groupCollapsed('Payhero logs (initiate error)');
