@@ -94,8 +94,11 @@ export default async function handler(req, res) {
       payment.providerResponse = { ok: false, error: 'Server misconfiguration: PAYHERO_AUTH_TOKEN or PAYHERO_CHANNEL_ID not set' };
     }
 
-    // Do not persist initiation attempt. Return transient payment info to client.
-    return res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null, payment });
+  // Do not persist initiation attempt. Return transient payment info to client.
+  // Also expose top-level provider identifiers to make client polling reliable.
+  const providerReference = payment.providerResponse?.body?.reference || null;
+  const checkoutId = payment.providerResponse?.body?.CheckoutRequestID || payment.providerResponse?.body?.checkout_request_id || payment.providerRequestId || null;
+  return res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null, providerReference, checkoutId, payment });
   } catch (err) {
     console.error('Initiate handler error', err);
     res.setHeader('Access-Control-Allow-Origin', '*');
