@@ -1,19 +1,19 @@
 import { appendLog, readPayments, writePayments, generateId, upsertUser } from '../_lib.js';
 
 export default async function handler(req, res) {
-  // Allow CORS for client-side confirmation requests
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const { reference, providerRequestId, external_reference, userId, phone, amount, purpose } = req.body || {};
-  const lookup = reference || providerRequestId || external_reference;
-  if (!lookup) return res.status(400).json({ error: 'reference, providerRequestId or external_reference required' });
-
   try {
+    // Allow CORS for client-side confirmation requests
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const { reference, providerRequestId, external_reference, userId, phone, amount, purpose } = req.body || {};
+    const lookup = reference || providerRequestId || external_reference;
+    if (!lookup) return res.status(400).json({ error: 'reference, providerRequestId or external_reference required' });
+
     const PAYHERO_BASE = process.env.PAYHERO_BASE_URL || 'https://api.payhero.co.ke';
     const AUTH = process.env.PAYHERO_AUTH_TOKEN || process.env.PAYHERO_API_KEY || '';
     if (!AUTH) return res.status(500).json({ error: 'Server configuration error: PAYHERO_AUTH_TOKEN not set' });
@@ -87,7 +87,11 @@ export default async function handler(req, res) {
 
     return res.json({ ok: true, payment: p, providerResponse: data });
   } catch (err) {
+    console.error('Confirm handler error', err);
     await appendLog('error', 'Error in /payments/confirm', { err: String(err) });
-    return res.status(500).json({ error: err && err.message ? err.message : String(err) });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    return res.status(500).json({ error: 'handler_exception', detail: err && err.message ? err.message : String(err) });
   }
 }

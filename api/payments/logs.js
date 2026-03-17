@@ -14,7 +14,11 @@ export default async function handler(req, res) {
     });
     return res.json({ ok: true, logs: tail });
   } catch (e) {
+    console.error('Logs handler error', e);
     await appendLog('error', 'Failed to read logs', { error: String(e) });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     return res.status(500).json({ ok: false, error: String(e) });
   }
 }
