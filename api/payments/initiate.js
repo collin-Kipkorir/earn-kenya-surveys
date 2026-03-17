@@ -99,6 +99,7 @@ export default async function handler(req, res) {
 
   payments.push(payment);
   await writePayments(payments);
-  await appendLog('info', 'Payment record created', { paymentId: payment.id, providerResponse: payment.providerResponse });
-  return res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null });
+  await appendLog('info', 'Payment record created', { paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null });
+  // Debug: include full payment object so clients can inspect providerResponse and providerRequestId
+  return res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null, payment });
 }
