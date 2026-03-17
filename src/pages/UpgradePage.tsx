@@ -101,12 +101,41 @@ export default function UpgradePage() {
               const successKeywords = ['success', '0', 'completed', 'ok'];
               const isSuccess = successKeywords.some(k => s === k || s.includes(k));
               if (isSuccess) {
-                upgradeTier(user.id, tier);
-                refreshUser();
-                setIsProcessing(false);
-                setCurrentPaymentId(null);
-                toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
-                return;
+                // Confirm with server and persist the payment before upgrading locally
+                try {
+                  const confirmResp = await fetch(`${base}/payments/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+                  });
+                  if (confirmResp.ok) {
+                    const confirmJson = await confirmResp.json();
+                    if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                      upgradeTier(user.id, tier);
+                      refreshUser();
+                      setIsProcessing(false);
+                      setCurrentPaymentId(null);
+                      toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+                      return;
+                    } else {
+                      setIsProcessing(false);
+                      setRetryAvailable(true);
+                      toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
+                      return;
+                    }
+                  } else {
+                    setIsProcessing(false);
+                    setRetryAvailable(true);
+                    toast.error('Failed to confirm payment with server. Please try again.');
+                    return;
+                  }
+                } catch (err) {
+                  console.error('Confirm call failed', err);
+                  setIsProcessing(false);
+                  setRetryAvailable(true);
+                  toast.error('Error confirming payment with server. Please try again.');
+                  return;
+                }
               }
               if (s && !['pending', 'unknown'].includes(s)) {
                 setIsProcessing(false);
@@ -120,6 +149,28 @@ export default function UpgradePage() {
               const data = await sresp.json();
               providerRequestId = data.providerRequestId || null;
               if (data.status === 'success') {
+                // Persist/confirm idempotently then upgrade locally
+                try {
+                  const confirmResp = await fetch(`${base}/payments/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+                  });
+                  if (confirmResp.ok) {
+                    const confirmJson = await confirmResp.json();
+                    if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                      upgradeTier(user.id, tier);
+                      refreshUser();
+                      setIsProcessing(false);
+                      setCurrentPaymentId(null);
+                      toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+                      return;
+                    }
+                  }
+                } catch (err) {
+                  console.debug('Confirm idempotent call failed', err);
+                }
+                // Fallback to local upgrade
                 upgradeTier(user.id, tier);
                 refreshUser();
                 setIsProcessing(false);

@@ -112,12 +112,42 @@ export default function ProfilePage() {
               const successKeywords = ['success', '0', 'completed', 'ok'];
               const isSuccess = successKeywords.some(k => s === k || s.includes(k));
               if (isSuccess) {
-                activateAccount(user.id);
-                refreshUser();
-                setIsProcessing(false);
-                setCurrentPaymentId(null);
-                toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
-                return;
+                // Confirm with server and persist the payment before activating locally
+                try {
+                  const confirmResp = await fetch(`${base}/payments/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+                  });
+                  if (confirmResp.ok) {
+                    const confirmJson = await confirmResp.json();
+                    if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                      activateAccount(user.id);
+                      refreshUser();
+                      setIsProcessing(false);
+                      setCurrentPaymentId(null);
+                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                      return;
+                    } else {
+                      // Server did not confirm success; surface to user
+                      setIsProcessing(false);
+                      setRetryAvailable(true);
+                      toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
+                      return;
+                    }
+                  } else {
+                    setIsProcessing(false);
+                    setRetryAvailable(true);
+                    toast.error('Failed to confirm payment with server. Please try again.');
+                    return;
+                  }
+                } catch (err) {
+                  console.error('Confirm call failed', err);
+                  setIsProcessing(false);
+                  setRetryAvailable(true);
+                  toast.error('Error confirming payment with server. Please try again.');
+                  return;
+                }
               }
               if (s && !['pending', 'unknown'].includes(s)) {
                 toast.error('Payment failed. Please try again.');
@@ -131,6 +161,28 @@ export default function ProfilePage() {
               providerRequestId = data.providerRequestId || null;
               status = data.status;
               if (status === 'success') {
+                // Payment already persisted by callback or previous confirm; still try to confirm idempotently
+                try {
+                  const confirmResp = await fetch(`${base}/payments/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+                  });
+                  if (confirmResp.ok) {
+                    const confirmJson = await confirmResp.json();
+                    if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                      activateAccount(user.id);
+                      refreshUser();
+                      setIsProcessing(false);
+                      setCurrentPaymentId(null);
+                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                      return;
+                    }
+                  }
+                } catch (err) {
+                  console.debug('Confirm idempotent call failed', err);
+                }
+                // If we reached here, fallback to local activation but warn the user
                 activateAccount(user.id);
                 refreshUser();
                 setIsProcessing(false);
