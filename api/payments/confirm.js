@@ -1,4 +1,4 @@
-import { appendLog, readPayments, writePayments, generateId, upsertUser, getProviderReference } from '../_lib.js';
+import { appendLog, readPayments, writePayments, generateId, upsertUser, getProviderReference, setReferenceMapping } from '../_lib.js';
 
 export default async function handler(req, res) {
   try {
@@ -36,6 +36,17 @@ export default async function handler(req, res) {
     // Determine account/reference and transaction status from provider response
     const accountReference = data.accountReference || data.external_reference || data.reference || data.request_id || data.requestId || data.CheckoutRequestID || data.checkout_request_id || data.checkoutRequestID || data.data?.accountReference || data.metadata?.accountReference || null;
     const transactionStatus = data.status || data.result || data.resultCode || data.data?.status || (data.data && data.data.transaction && data.data.transaction.status) || 'unknown';
+
+    // If provider returned its authoritative reference in the status response, persist mapping
+    try {
+      const provRef = data.reference || data.data?.reference || null;
+      if (provRef && external_reference) {
+        await setReferenceMapping(external_reference, provRef);
+        try { await appendLog('info', 'Persisted reference mapping from confirm', { external_reference, providerReference: provRef, lookup }); } catch (e) { /* ignore */ }
+      }
+    } catch (e) {
+      console.error('Failed to persist reference mapping from confirm', e);
+    }
 
     const s = String(transactionStatus).toLowerCase();
     const successKeywords = ['success', '0', 'completed', 'ok'];
