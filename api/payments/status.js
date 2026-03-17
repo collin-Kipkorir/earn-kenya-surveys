@@ -1,7 +1,7 @@
 // Simple proxy to Payhero's transaction-status endpoint.
 // Usage: GET /api/payments/status?reference=...  (returns Payhero response)
 
-import { getProviderReference } from '../_lib.js';
+import { getProviderReference, appendLog } from '../_lib.js';
 
 export default async function handler(req, res) {
   try {
@@ -23,9 +23,13 @@ export default async function handler(req, res) {
     let lookup = reference;
     try {
       const mapped = await getProviderReference(reference);
-      if (mapped) lookup = mapped;
+      if (mapped) {
+        lookup = mapped;
+        try { await appendLog('info', 'Translated reference for status check', { original: reference, mapped: lookup }); } catch (e) { /* ignore logging failures */ }
+      }
     } catch (e) {
       console.error('Reference map lookup failed', e);
+      try { await appendLog('error', 'Reference map lookup failed', { original: reference, err: String(e) }); } catch (e2) { /* ignore */ }
     }
 
     if (!AUTH) return res.status(500).json({ error: 'Server configuration error: PAYHERO_AUTH_TOKEN not set' });
