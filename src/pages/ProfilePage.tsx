@@ -80,11 +80,17 @@ export default function ProfilePage() {
         }
   const j = await resp.json();
   const paymentId = j.paymentId;
-        // Use Payhero 'reference' only (official contract). If absent, surface an error and allow retry.
+        // Prefer Payhero `reference`, but fall back to checkout/request ids so the UI doesn't get stuck.
         const providerReference = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
-        let providerRequestId = providerReference || null;
+        let providerRequestId = providerReference
+          || j.providerRequestId
+          || j.providerResponse?.body?.CheckoutRequestID
+          || j.providerResponse?.body?.checkout_request_id
+          || j.payment?.providerRequestId
+          || j.checkoutId
+          || null;
         if (!providerRequestId) {
-          toast.error('Payment provider did not return a reference. Please correct your number and try again.');
+          toast.error('Payment provider did not return a reference or checkout id. Please try again.');
           setRetryAvailable(true);
           setIsProcessing(false);
           return;
