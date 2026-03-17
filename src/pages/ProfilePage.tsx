@@ -64,9 +64,14 @@ export default function ProfilePage() {
           }
           return;
         }
-        const j = await resp.json();
-        const paymentId = j.paymentId;
-        let providerRequestId = j.providerRequestId || null;
+  const j = await resp.json();
+  const paymentId = j.paymentId;
+  // Pick Payhero identifier: prefer `reference` (official docs), then CheckoutRequestID or request_id
+  let providerRequestId = j.providerRequestId || null;
+  const providerReference = j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
+  const checkoutId = j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || null;
+  // Use reference when available (Payhero transaction-status expects `reference`), otherwise fall back
+  providerRequestId = providerReference || providerRequestId || checkoutId || null;
         // If provider returned an immediate error, surface it and fetch logs
         if (j.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';

@@ -62,9 +62,13 @@ export default function UpgradePage() {
           }
           return;
         }
-        const j = await resp.json();
-        const paymentId = j.paymentId;
-        let providerRequestId = j.providerRequestId || null;
+  const j = await resp.json();
+  const paymentId = j.paymentId;
+  // Prefer Payhero `reference` (official docs) then checkout/request ids
+  let providerRequestId = j.providerRequestId || null;
+  const providerReference = j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
+  const checkoutId = j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || null;
+  providerRequestId = providerReference || providerRequestId || checkoutId || null;
         if (j.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
           toast.error(`Payment initiation error: ${errMsg}`);
