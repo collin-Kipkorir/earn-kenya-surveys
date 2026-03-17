@@ -76,6 +76,29 @@ export default function UpgradePage() {
         }
   const j = await resp.json();
   const paymentId = j.paymentId;
+
+        // If provider returned an immediate error, surface it and fetch logs
+        if (j.providerResponse && j.providerResponse.ok === false) {
+          const errMsg = j.providerResponse.body?.error_message || j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
+          toast.error(`Payment initiation error: ${errMsg}`);
+          try {
+            const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
+            const base = apiBase.replace(/\/+$/, '');
+            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
+            if (logsResp.ok) {
+              const logsJson = await logsResp.json();
+              console.groupCollapsed('Payhero logs (initiate error)');
+              console.log(logsJson.logs);
+              console.groupEnd();
+            }
+          } catch (e) {
+            // ignore
+          }
+          setRetryAvailable(true);
+          setIsProcessing(false);
+          return;
+        }
+
         // Prefer Payhero `reference`, but fall back to checkout/request ids so the UI doesn't get stuck.
         const providerReference = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
         let providerRequestId = providerReference
