@@ -1,4 +1,4 @@
-import { /* appendLog, readPayments, writePayments, */ generateId } from '../_lib.js';
+import { /* appendLog, readPayments, writePayments, */ generateId, setReferenceMapping } from '../_lib.js';
 
 export default async function handler(req, res) {
   // top-level invocation guard: catch runtime errors and return helpful JSON
@@ -90,6 +90,16 @@ export default async function handler(req, res) {
 
         if (response.ok) {
           payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || data.CheckoutRequestID || null;
+          // If provider returned its authoritative reference, persist a mapping from our external_reference -> provider reference
+          try {
+            const provRef = data.reference || data.data?.reference || null;
+            if (provRef && external_reference) {
+              await setReferenceMapping(external_reference, provRef);
+            }
+          } catch (e) {
+            // non-fatal mapping failure
+            console.error('Failed to persist reference mapping', e);
+          }
         } else {
           // Non-OK status returned; will be surfaced to client in the response
         }

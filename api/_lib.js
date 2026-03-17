@@ -4,6 +4,7 @@ import path from 'path';
 const DATA_PATH = path.join(process.cwd(), 'server', 'payments.json');
 const LOG_PATH = path.join(process.cwd(), 'server', 'payments.log');
 const USERS_PATH = path.join(process.cwd(), 'server', 'users.json');
+const REFMAP_PATH = path.join(process.cwd(), 'server', 'reference-map.json');
 
 export async function appendLog(level, message, meta) {
   const entry = { ts: new Date().toISOString(), level, message, meta };
@@ -67,4 +68,37 @@ export async function upsertUser(user) {
   }
   await writeUsers(users);
   return user;
+}
+
+// Reference map persistence: maps our external_reference -> provider reference
+export async function readReferenceMap() {
+  try {
+    const raw = await fs.readFile(REFMAP_PATH, 'utf8');
+    return JSON.parse(raw || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+export async function writeReferenceMap(obj) {
+  try {
+    await fs.mkdir(path.dirname(REFMAP_PATH), { recursive: true });
+    await fs.writeFile(REFMAP_PATH, JSON.stringify(obj, null, 2));
+  } catch (e) {
+    console.error('Failed to write reference map', e);
+  }
+}
+
+export async function setReferenceMapping(externalReference, providerReference) {
+  if (!externalReference || !providerReference) return null;
+  const m = await readReferenceMap();
+  m[String(externalReference)] = String(providerReference);
+  await writeReferenceMap(m);
+  return m[String(externalReference)];
+}
+
+export async function getProviderReference(externalReference) {
+  if (!externalReference) return null;
+  const m = await readReferenceMap();
+  return m[String(externalReference)] || null;
 }

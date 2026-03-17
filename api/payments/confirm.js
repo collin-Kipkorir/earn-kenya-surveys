@@ -1,4 +1,4 @@
-import { appendLog, readPayments, writePayments, generateId, upsertUser } from '../_lib.js';
+import { appendLog, readPayments, writePayments, generateId, upsertUser, getProviderReference } from '../_lib.js';
 
 export default async function handler(req, res) {
   try {
@@ -11,8 +11,16 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const { reference, providerRequestId, external_reference, userId, phone, amount, purpose } = req.body || {};
-    const lookup = reference || providerRequestId || external_reference;
+    let lookup = reference || providerRequestId || external_reference;
     if (!lookup) return res.status(400).json({ error: 'reference, providerRequestId or external_reference required' });
+
+    // If the client passed our external_reference, translate to provider reference if mapping exists
+    try {
+      const mapped = await getProviderReference(lookup);
+      if (mapped) lookup = mapped;
+    } catch (e) {
+      console.error('Failed to lookup provider reference mapping', e);
+    }
 
     const PAYHERO_BASE = process.env.PAYHERO_BASE_URL || 'https://api.payhero.co.ke';
     const AUTH = process.env.PAYHERO_AUTH_TOKEN || process.env.PAYHERO_API_KEY || '';

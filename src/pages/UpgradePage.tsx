@@ -76,11 +76,15 @@ export default function UpgradePage() {
         }
   const j = await resp.json();
   const paymentId = j.paymentId;
-  // Prefer Payhero `reference` (official docs) then checkout/request ids
-  let providerRequestId = j.providerRequestId || null;
-  const providerReference = j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
-  const checkoutId = j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || null;
-  providerRequestId = providerReference || providerRequestId || checkoutId || null;
+        // Use Payhero `reference` only. If it's missing, allow retry (provider didn't queue request).
+        const providerReference = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
+        let providerRequestId = providerReference || null;
+        if (!providerRequestId) {
+          toast.error('Payment provider did not return a reference. Please correct the phone number and try again.');
+          setRetryAvailable(true);
+          setIsProcessing(false);
+          return;
+        }
         if (j.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
           toast.error(`Payment initiation error: ${errMsg}`);
@@ -108,11 +112,19 @@ export default function UpgradePage() {
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
           try {
-            if (providerRequestId) {
+              if (providerRequestId) {
               const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
-              if (!sresp.ok) continue;
               const pdata = await sresp.json();
-              const txStatus = pdata.status || pdata.result || pdata.resultCode || pdata.data?.status || (pdata.data && pdata.data.transaction && pdata.data.transaction.status) || 'unknown';
+
+              if (pdata && pdata.ok === false) {
+                setIsProcessing(false);
+                setRetryAvailable(true);
+                toast.error('Payment failed or cancelled. Please try again.');
+                return;
+              }
+
+              const providerBody = pdata && pdata.body ? pdata.body : pdata;
+              const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
               const s = String(txStatus).toLowerCase();
               const successKeywords = ['success', '0', 'completed', 'ok'];
               const isSuccess = successKeywords.some(k => s === k || s.includes(k));

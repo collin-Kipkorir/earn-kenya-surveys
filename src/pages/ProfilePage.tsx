@@ -80,12 +80,15 @@ export default function ProfilePage() {
         }
   const j = await resp.json();
   const paymentId = j.paymentId;
-  // Pick Payhero identifier: prefer `reference` (official docs), then CheckoutRequestID or request_id
-  let providerRequestId = j.providerRequestId || null;
-  const providerReference = j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
-  const checkoutId = j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || null;
-  // Use reference when available (Payhero transaction-status expects `reference`), otherwise fall back
-  providerRequestId = providerReference || providerRequestId || checkoutId || null;
+        // Use Payhero 'reference' only (official contract). If absent, surface an error and allow retry.
+        const providerReference = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
+        let providerRequestId = providerReference || null;
+        if (!providerRequestId) {
+          toast.error('Payment provider did not return a reference. Please correct your number and try again.');
+          setRetryAvailable(true);
+          setIsProcessing(false);
+          return;
+        }
         // If provider returned an immediate error, surface it and fetch logs
         if (j.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
@@ -122,15 +125,25 @@ export default function ProfilePage() {
 
           try {
             if (providerRequestId) {
-              // poll Payhero via our status proxy
-              const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
-              if (!sresp.ok) continue;
-              const pdata = await sresp.json();
-              const txStatus = pdata.status || pdata.result || pdata.resultCode || pdata.data?.status || (pdata.data && pdata.data.transaction && pdata.data.transaction.status) || 'unknown';
-              const s = String(txStatus).toLowerCase();
-              const successKeywords = ['success', '0', 'completed', 'ok'];
-              const isSuccess = successKeywords.some(k => s === k || s.includes(k));
-              if (isSuccess) {
+                // poll Payhero via our status proxy
+                const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
+                const pdata = await sresp.json();
+
+                // Our status proxy returns { ok, status, body } to make non-2xx provider replies inspectable.
+                if (pdata && pdata.ok === false) {
+                  // Provider returned an error (e.g., cancelled, invalid reference) — stop polling and allow retry
+                  setIsProcessing(false);
+                  setRetryAvailable(true);
+                  toast.error('Payment failed or cancelled. Please try again.');
+                  return;
+                }
+
+                const providerBody = pdata && pdata.body ? pdata.body : pdata;
+                const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
+                const s = String(txStatus).toLowerCase();
+                const successKeywords = ['success', '0', 'completed', 'ok'];
+                const isSuccess = successKeywords.some(k => s === k || s.includes(k));
+                if (isSuccess) {
                 // Confirm with server and persist the payment before activating locally
                 try {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
