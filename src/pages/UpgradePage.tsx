@@ -28,12 +28,24 @@ export default function UpgradePage() {
   const handleUpgrade = (tier: 'premium' | 'gold') => {
     (async () => {
       try {
+    // Basic client-side phone normalization & validation
+    const raw = phone || '';
+    const digits = raw.replace(/\D/g, '');
+    let normalized = digits;
+    if (normalized.startsWith('254')) normalized = '0' + normalized.slice(3);
+    if (normalized.startsWith('+254')) normalized = '0' + normalized.slice(4);
+    if (normalized.startsWith('7') && normalized.length === 9) normalized = '0' + normalized;
+    if (!/^0\d{9}$/.test(normalized)) {
+      toast.error('Please enter a valid Kenyan phone number (e.g. 0712345678)');
+      return;
+    }
+    const sendPhone = normalized;
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
     const base = apiBase.replace(/\/+$/, '');
     const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
         });
         if (!resp.ok) {
           const errBodyText = await resp.text().catch(() => '');

@@ -28,13 +28,27 @@ export default function ProfilePage() {
     // The server will return a paymentId which we poll for status. Only after status === 'success'
     // do we activate the user locally.
     (async () => {
+      // Basic client-side phone normalization & validation to avoid provider rejections
+      const raw = stkPhone || '';
+      const digits = raw.replace(/\D/g, '');
+      let normalized = digits;
+      if (normalized.startsWith('254')) normalized = '0' + normalized.slice(3);
+      if (normalized.startsWith('+254')) normalized = '0' + normalized.slice(4);
+      if (normalized.startsWith('7') && normalized.length === 9) normalized = '0' + normalized;
+      // Expect Kenyan national format: 0 followed by 9 digits (total 10)
+      if (!/^0\d{9}$/.test(normalized)) {
+        toast.error('Please enter a valid Kenyan phone number (e.g. 0712345678)');
+        return;
+      }
+      // Use normalized phone for the initiate call
+      const sendPhone = normalized;
       try {
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
   const base = apiBase.replace(/\/+$/, '');
   const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 100, purpose: 'activation' })
         });
         if (!resp.ok) {
           // try to read detailed error from body

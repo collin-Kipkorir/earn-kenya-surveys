@@ -36,9 +36,15 @@ export default async function handler(req, res) {
         // initiation is ephemeral; do not write logs or persist here
 
         // Normalize phone
-        let normPhone = String(phone).trim();
-        if (normPhone.startsWith('254')) normPhone = '0' + normPhone.slice(3);
-        else if (!normPhone.startsWith('0')) normPhone = '0' + normPhone;
+          let normPhone = String(phone || '').replace(/\D/g, '');
+          if (normPhone.startsWith('254')) normPhone = '0' + normPhone.slice(3);
+          if (normPhone.startsWith('7') && normPhone.length === 9) normPhone = '0' + normPhone;
+          if (normPhone.startsWith('+254')) normPhone = '0' + normPhone.slice(4);
+          // Validate final format: Kenyan national format 0######### (10 digits)
+          if (!/^0\d{9}$/.test(normPhone)) {
+            // return a helpful error to the client instead of sending to provider
+            return res.status(400).json({ error: 'invalid_phone', message: 'Phone must be Kenyan national format (0XXXXXXXXX), e.g. 0712345678', normalized: normPhone });
+          }
 
         // Build callback URL
         const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host || '';
