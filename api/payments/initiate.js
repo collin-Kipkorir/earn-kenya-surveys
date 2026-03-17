@@ -15,7 +15,6 @@ export default async function handler(req, res) {
     const { userId, phone, amount, purpose } = req.body || {};
     if (!userId || !phone || !amount) return res.status(400).json({ error: 'userId, phone and amount required' });
 
-    const payments = await readPayments();
     const payment = {
       id: generateId(),
       userId,
@@ -34,7 +33,7 @@ export default async function handler(req, res) {
 
     if (AUTH && DEFAULT_CHANNEL_ID) {
       try {
-        await appendLog('info', 'Initiating STK push', { paymentId: payment.id, userId, phone, amount, purpose });
+        // initiation is ephemeral; do not write logs or persist here
 
         // Normalize phone
         let normPhone = String(phone).trim();
