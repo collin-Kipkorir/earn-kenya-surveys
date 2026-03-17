@@ -10,6 +10,9 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [stkPhone, setStkPhone] = useState(user?.phone || '');
   const [showActivateModal, setShowActivateModal] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [retryAvailable, setRetryAvailable] = useState(false);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
 
   if (!user) return null;
 
@@ -83,13 +86,15 @@ export default function ProfilePage() {
           }
           return;
         }
-        if (!paymentId) throw new Error('No payment id returned');
-        toast.success('STK push initiated. Please complete the payment on your phone.');
-        setShowActivateModal(false);
+  if (!paymentId) throw new Error('No payment id returned');
+  setCurrentPaymentId(paymentId);
+  setIsProcessing(true);
+  setRetryAvailable(false);
+  toast.success('STK push initiated. Please complete the payment on your phone.');
 
   // poll for status — if initiate returned providerRequestId use it immediately,
   // otherwise poll the local payment record until providerRequestId becomes available.
-        const start = Date.now();
+  const start = Date.now();
         const timeoutMs = 2 * 60 * 1000; // 2 minutes
   // providerRequestId may have been returned directly from initiate
         let status = 'pending';
@@ -109,6 +114,8 @@ export default function ProfilePage() {
               if (isSuccess) {
                 activateAccount(user.id);
                 refreshUser();
+                setIsProcessing(false);
+                setCurrentPaymentId(null);
                 toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                 return;
               }
@@ -126,10 +133,14 @@ export default function ProfilePage() {
               if (status === 'success') {
                 activateAccount(user.id);
                 refreshUser();
+                setIsProcessing(false);
+                setCurrentPaymentId(null);
                 toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                 return;
               }
               if (status === 'failed') {
+                setIsProcessing(false);
+                setRetryAvailable(true);
                 toast.error('Payment failed. Please try again.');
                 return;
               }
@@ -139,7 +150,9 @@ export default function ProfilePage() {
             console.debug('Polling error', err);
           }
         }
-        toast.error('Payment timed out. If you paid but were not activated, contact support.');
+        setIsProcessing(false);
+        setRetryAvailable(true);
+        toast.error('Payment timed out. If you paid but were not activated, you can retry.');
       } catch (err) {
         console.error(err);
         const msg = (err as unknown as { message?: string })?.message || 'Payment initiation failed';
@@ -232,10 +245,16 @@ export default function ProfilePage() {
               <input type="tel" value={stkPhone} onChange={e => setStkPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none" />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowActivateModal(false)} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
-              <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
-                Pay KSh 100
-              </button>
+              <button onClick={() => { setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
+              {!isProcessing && !retryAvailable && (
+                <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 100</button>
+              )}
+              {isProcessing && (
+                <button disabled className="flex-1 py-3 rounded-xl bg-muted text-muted-foreground font-bold">Processing…</button>
+              )}
+              {retryAvailable && (
+                <button onClick={() => { setRetryAvailable(false); handleActivate(); }} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Retry</button>
+              )}
             </div>
           </div>
         </div>

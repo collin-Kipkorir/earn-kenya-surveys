@@ -17,6 +17,9 @@ export default function UpgradePage() {
   const navigate = useNavigate();
   const [showPayModal, setShowPayModal] = useState<'premium' | 'gold' | null>(null);
   const [phone, setPhone] = useState(user?.phone || '');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [retryAvailable, setRetryAvailable] = useState(false);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
 
   if (!user) return null;
 
@@ -78,9 +81,11 @@ export default function UpgradePage() {
           }
           return;
         }
-        if (!paymentId) throw new Error('No payment id returned');
-        toast.success('STK push initiated. Please complete the payment on your phone.');
-        setShowPayModal(null);
+  if (!paymentId) throw new Error('No payment id returned');
+  setCurrentPaymentId(paymentId);
+  setIsProcessing(true);
+  setRetryAvailable(false);
+  toast.success('STK push initiated. Please complete the payment on your phone.');
 
   const start = Date.now();
   const timeoutMs = 2 * 60 * 1000;
@@ -98,10 +103,14 @@ export default function UpgradePage() {
               if (isSuccess) {
                 upgradeTier(user.id, tier);
                 refreshUser();
+                setIsProcessing(false);
+                setCurrentPaymentId(null);
                 toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                 return;
               }
               if (s && !['pending', 'unknown'].includes(s)) {
+                setIsProcessing(false);
+                setRetryAvailable(true);
                 toast.error('Payment failed. Please try again.');
                 return;
               }
@@ -113,10 +122,14 @@ export default function UpgradePage() {
               if (data.status === 'success') {
                 upgradeTier(user.id, tier);
                 refreshUser();
+                setIsProcessing(false);
+                setCurrentPaymentId(null);
                 toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                 return;
               }
               if (data.status === 'failed') {
+                setIsProcessing(false);
+                setRetryAvailable(true);
                 toast.error('Payment failed. Please try again.');
                 return;
               }
@@ -125,7 +138,9 @@ export default function UpgradePage() {
             console.debug('Polling error', err);
           }
         }
-        toast.error('Payment timed out. If you paid but were not upgraded, contact support.');
+  setIsProcessing(false);
+  setRetryAvailable(true);
+  toast.error('Payment timed out. If you paid but were not upgraded, you can retry.');
       } catch (err) {
         const msg = (err as unknown as { message?: string })?.message || 'Payment initiation failed';
         toast.error(msg);
@@ -196,10 +211,16 @@ export default function UpgradePage() {
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none" />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowPayModal(null)} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
-              <button onClick={() => handleUpgrade(showPayModal)} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
-                Pay via M-Pesa
-              </button>
+              <button onClick={() => { setShowPayModal(null); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
+              {!isProcessing && !retryAvailable && (
+                <button onClick={() => handleUpgrade(showPayModal)} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay via M-Pesa</button>
+              )}
+              {isProcessing && (
+                <button disabled className="flex-1 py-3 rounded-xl bg-muted text-muted-foreground font-bold">Processing…</button>
+              )}
+              {retryAvailable && (
+                <button onClick={() => { setRetryAvailable(false); handleUpgrade(showPayModal); }} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Retry</button>
+              )}
             </div>
           </div>
         </div>
