@@ -127,7 +127,7 @@ export default async function handler(req, res) {
     if (isSuccess && !hasProviderConfirmation) {
       // Log and return a safe response so client won't activate/upgrade without a real provider receipt.
       try { await appendLog('warn', 'Confirm returned success but no provider confirmation field present; refusing to upsert user', { lookup, userId: targetUserId, providerResponseSummary: { ok: response.ok, status: response.status } }); } catch (e) { /* ignore */ }
-      return res.json({ ok: false, reason: 'no_provider_confirmation', payment: p, providerResponse: data });
+      return res.status(400).json({ ok: false, reason: 'no_provider_confirmation', payment: p, providerResponse: data });
     }
 
     if (canUpsert) {
