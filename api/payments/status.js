@@ -55,7 +55,16 @@ export default async function handler(req, res) {
       // ignore if import fails in some runtimes
     }
 
-    return res.status(response.status).json(data);
+    // Derive helpful tracing fields so clients can see whether STK was sent and whether
+    // the provider reports an explicit boolean success or a textual success.
+    const providerRequestId = data.request_id || data.checkout_request_id || data.requestId || data.CheckoutRequestID || null;
+    const providerReference = data.reference || data.provider_reference || data.payment_reference || null;
+    const explicitSuccess = (typeof data.success === 'boolean') ? data.success : (data.data && typeof data.data.success === 'boolean' ? data.data.success : null);
+    const s = String((data.status || data.result || data.resultCode || explicitSuccess === null) || '').toLowerCase();
+    const textualSuccess = s && (s.includes('success') || s.includes('completed') || s === '0');
+    const stkSent = Boolean(providerRequestId || providerReference);
+
+    return res.status(response.status).json({ providerBody: data, providerRequestId, providerReference, explicitSuccess, textualSuccess, stkSent });
   } catch (err) {
     console.error('[api/payhero/status] error:', err.message);
     return res.status(500).json({ error: err.message });

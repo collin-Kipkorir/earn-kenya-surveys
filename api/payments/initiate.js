@@ -115,10 +115,13 @@ export default async function handler(req, res) {
     }
 
   // Do not persist initiation attempt. Return transient payment info to client.
-  // Also expose top-level provider identifiers to make client polling reliable.
+  // Also expose top-level provider identifiers to make client polling reliable and include
+  // explicit flags so the client can show where the flow is (STK sent, provider ids, etc.).
   const providerReference = payment.providerResponse?.body?.reference || null;
   const checkoutId = payment.providerResponse?.body?.CheckoutRequestID || payment.providerResponse?.body?.checkout_request_id || payment.providerRequestId || null;
-  return res.json({ paymentId: payment.id, providerResponse: payment.providerResponse, providerRequestId: payment.providerRequestId || null, providerReference, checkoutId, payment });
+  const stkSent = Boolean(payment.providerRequestId || checkoutId);
+  const providerIdentifiers = { providerRequestId: payment.providerRequestId || null, providerReference, checkoutId };
+  return res.json({ paymentId: payment.id, payment, providerResponse: payment.providerResponse, providerIdentifiers, stkSent });
   } catch (err) {
     console.error('Initiate handler error', err);
     res.setHeader('Access-Control-Allow-Origin', '*');

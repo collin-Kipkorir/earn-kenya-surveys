@@ -10,8 +10,8 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { reference, providerRequestId, external_reference, userId, phone, amount, purpose } = req.body || {};
-    let lookup = reference || providerRequestId || external_reference;
+  const { reference, providerRequestId: providerRequestIdFromClient, external_reference, userId, phone, amount, purpose } = req.body || {};
+  let lookup = reference || providerRequestIdFromClient || external_reference;
     if (!lookup) return res.status(400).json({ error: 'reference, providerRequestId or external_reference required' });
 
     // If the client passed our external_reference, translate to provider reference if mapping exists
@@ -138,7 +138,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, reason: 'no_provider_confirmation', payment: p, providerResponse: data });
     }
 
+    let upsertAttempted = false;
+    let upsertSucceeded = false;
     if (canUpsert) {
+      upsertAttempted = true;
       try {
         const userUpdate = { id: targetUserId };
         if (p.purpose === 'activation') {
@@ -151,15 +154,23 @@ export default async function handler(req, res) {
           userUpdate.dailySurveyLimit = tier === 'gold' ? 10 : 5;
         }
         await upsertUser(userUpdate);
+        upsertSucceeded = true;
         await appendLog('info', 'Upserted server user from confirm', { userId: targetUserId, userUpdate });
       } catch (err) {
+        upsertSucceeded = false;
         await appendLog('error', 'Failed to upsert user from confirm', { err: String(err), paymentId: p.id });
       }
     }
 
   // Inform client whether we're still awaiting webhook callback to finalize the payment
   const awaitingCallback = requireCallback && isSuccess;
-  return res.json({ ok: true, payment: p, providerResponse: data, awaitingCallback });
+  // Provide detailed tracing fields so client and logs can show where the flow is failing
+  const providerRequestId = data.request_id || data.checkout_request_id || data.requestId || data.CheckoutRequestID || null;
+  const providerReference = data.reference || data.provider_reference || data.payment_reference || null;
+  // Reuse explicitSuccess/textualSuccess computed above; here just compute stkSent for tracing
+  const stkSent = Boolean(providerRequestId || providerReference);
+
+  return res.json({ ok: true, payment: p, providerResponse: data, awaitingCallback, tracing: { providerRequestId, providerReference, explicitSuccess, textualSuccess, hasProviderConfirmation, stkSent, upsertAttempted, upsertSucceeded } });
   } catch (err) {
     console.error('Confirm handler error', err);
     await appendLog('error', 'Error in /payments/confirm', { err: String(err) });

@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     }
 
     const body = req.body || {};
-    await appendLog('info', 'Callback received', { headers: req.headers, body });
+  await appendLog('info', 'Callback received', { headers: req.headers, body });
 
     // Try multiple possible fields Payhero might send
     const accountReference = body.accountReference
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       payments.push(orphan);
       await writePayments(payments);
       await appendLog('warn', 'Orphan callback recorded', { body });
-      return res.json({ ok: true, note: 'orphaned callback recorded' });
+      return res.json({ ok: true, note: 'orphaned callback recorded', paymentId: orphan.id });
     }
 
     // Normalize status detection (accept numeric 0, 'SUCCESS', 'success', 'Completed', etc.)
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     const successKeywords = ['success', '0', 'completed', 'ok'];
     const isSuccess = successKeywords.some(k => s === k || s.includes(k));
 
-    p.status = isSuccess ? 'success' : 'failed';
+  p.status = isSuccess ? 'success' : 'failed';
     // preserve full provider payload for debugging
     p.providerResponse = body;
     // store provider's request id / reference for future lookups
@@ -69,10 +69,13 @@ export default async function handler(req, res) {
     p.updatedAt = new Date().toISOString();
 
     await writePayments(payments);
-    await appendLog('info', 'Payment updated from callback', { paymentId: p.id, status: p.status, providerResponse: body });
+  await appendLog('info', 'Payment updated from callback', { paymentId: p.id, status: p.status, providerResponse: body });
 
     // If payment succeeded, attempt to update/create a minimal server-side user record
+    let upsertAttempted = false;
+    let upsertSucceeded = false;
     if (isSuccess && p.userId) {
+      upsertAttempted = true;
       try {
         const userUpdate = { id: p.userId };
         if (p.purpose === 'activation') {
@@ -86,12 +89,14 @@ export default async function handler(req, res) {
           userUpdate.dailySurveyLimit = tier === 'gold' ? 10 : 5;
         }
         await upsertUser(userUpdate);
+        upsertSucceeded = true;
         await appendLog('info', 'Upserted server user from callback', { userId: p.userId, userUpdate });
       } catch (err) {
+        upsertSucceeded = false;
         await appendLog('error', 'Failed to upsert user from callback', { err: String(err), paymentId: p.id });
       }
     }
-    return res.json({ ok: true });
+    return res.json({ ok: true, paymentId: p.id, paymentStatus: p.status, upsertAttempted, upsertSucceeded, providerRequestId: p.providerRequestId, providerResponse: body });
   } catch (err) {
     console.error('Callback handler error', err);
     res.setHeader('Access-Control-Allow-Origin', '*');
