@@ -361,6 +361,25 @@ export default function UpgradePage() {
               <label className="text-sm font-medium text-foreground block mb-1.5">M-Pesa Number</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none" />
             </div>
+            {pendingUntil && (
+              <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+                <div className="font-medium">Pending payment detected</div>
+                <div className="mt-1">There is already a pending STK push. Please complete the M-Pesa prompt on your phone. Waiting <strong>{formatRemaining(pendingUntil)}</strong>.</div>
+                <div className="mt-2 flex gap-2">
+                  <button onClick={async () => {
+                    if (!currentPaymentId) { toast('No pending payment id'); return; }
+                    try {
+                      const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
+                      const base = apiBase.replace(/\/+$/, '');
+                      const resp = await fetch(`${base}/payments/${currentPaymentId}`);
+                      if (!resp.ok) { toast.error('Failed to fetch payment status'); return; }
+                      const data = await resp.json();
+                      toast(`Payment status: ${data.status || 'unknown'}`);
+                    } catch (e) { toast.error('Failed to fetch payment status'); }
+                  }} className="px-3 py-2 rounded-lg border border-input text-sm">View payment status</button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3">
               <button onClick={() => { setShowPayModal(null); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               {!isProcessing && !retryAvailable && !pendingUntil && (

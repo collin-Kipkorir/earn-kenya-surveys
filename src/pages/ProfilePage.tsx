@@ -420,6 +420,15 @@ export default function ProfilePage() {
               <label className="text-sm font-medium text-foreground block mb-1.5">M-Pesa Number</label>
               <input type="tel" value={stkPhone} onChange={e => setStkPhone(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none" />
             </div>
+            {pendingUntil && (
+              <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+                <div className="font-medium">Pending payment detected</div>
+                <div className="mt-1">There is already a pending STK push. Please complete the M-Pesa prompt on your phone. Waiting <strong>{formatRemaining(pendingUntil)}</strong>.</div>
+                <div className="mt-2 flex gap-2">
+                  <button onClick={viewPendingPaymentStatus} className="px-3 py-2 rounded-lg border border-input text-sm">View payment status</button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3">
               <button onClick={() => { setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               {!isProcessing && !retryAvailable && !pendingUntil && (
