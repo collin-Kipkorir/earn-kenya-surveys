@@ -64,8 +64,12 @@ export default async function handler(req, res) {
     }
 
   const s = String(transactionStatus).toLowerCase();
-  const successKeywords = ['success', '0', 'completed', 'ok'];
-  const isSuccess = (data.success === true) || successKeywords.some(k => s === k || s.includes(k));
+  // Prefer explicit boolean success flags from provider. For textual status values treat them as
+  // success only when the provider returned a 2xx (response.ok) to avoid treating error payloads as success.
+  const successKeywords = ['success', 'completed', 'ok'];
+  const numericSuccess = s === '0';
+  const isSuccess = (data.success === true) || (data.data && data.data.success === true)
+    || (response.ok && (successKeywords.some(k => s === k || s.includes(k)) || numericSuccess));
   const isQueued = s === 'queued' || s.includes('queued');
 
     const payments = await readPayments();
