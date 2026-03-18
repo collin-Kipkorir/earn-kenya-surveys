@@ -89,30 +89,38 @@ export default async function handler(req, res) {
       || x.providerRequestId === lookup
       || x.id === external_reference
     );
+      // Optionally require webhook callback to mark final success (safer). When enabled we persist
+      // the payment but keep status as 'pending' even if provider status reports success. This prevents
+      // client-side activation/upgrade before the callback arrives.
+      const requireCallback = (process.env.PAYHERO_REQUIRE_CALLBACK || 'true') === 'true';
 
-    if (!p) {
-      p = {
-        id: external_reference || accountReference || generateId(),
-        userId: userId || null,
-        phone: phone || null,
-        amount: amount || 0,
-        purpose: purpose || 'activation',
-        status: isSuccess ? 'success' : (isQueued ? 'pending' : 'failed'),
-        createdAt: new Date().toISOString(),
-        providerResponse: data,
-        providerRequestId: lookup,
-      };
-      payments.push(p);
-      await writePayments(payments);
-      await appendLog('info', 'Payment confirmed and saved', { paymentId: p.id, status: p.status, lookup, providerResponseSummary: { ok: response.ok, status: response.status } });
-    } else {
-  p.status = isSuccess ? 'success' : (isQueued ? 'pending' : 'failed');
-      p.providerResponse = data;
-      p.providerRequestId = p.providerRequestId || lookup;
-      p.updatedAt = new Date().toISOString();
-      await writePayments(payments);
-      await appendLog('info', 'Payment updated from confirm', { paymentId: p.id, status: p.status, lookup });
-    }
+      // Decide persisted status: if requireCallback is true then treat provider 'success' as pending
+      // until callback arrives; otherwise use provider status.
+      const persistedStatus = requireCallback ? (isQueued ? 'pending' : (isSuccess ? 'pending' : 'failed')) : (isSuccess ? 'success' : (isQueued ? 'pending' : 'failed'));
+
+      if (!p) {
+        p = {
+          id: external_reference || accountReference || generateId(),
+          userId: userId || null,
+          phone: phone || null,
+          amount: amount || 0,
+          purpose: purpose || 'activation',
+          status: persistedStatus,
+          createdAt: new Date().toISOString(),
+          providerResponse: data,
+          providerRequestId: lookup,
+        };
+        payments.push(p);
+        await writePayments(payments);
+        await appendLog('info', 'Payment confirmed and saved', { paymentId: p.id, status: p.status, lookup, providerResponseSummary: { ok: response.ok, status: response.status } });
+      } else {
+        p.status = persistedStatus;
+        p.providerResponse = data;
+        p.providerRequestId = p.providerRequestId || lookup;
+        p.updatedAt = new Date().toISOString();
+        await writePayments(payments);
+        await appendLog('info', 'Payment updated from confirm', { paymentId: p.id, status: p.status, lookup });
+      }
 
     // Ensure we have userId/phone/amount on the payment record (if provided in the confirm request)
     p.userId = p.userId || userId || null;
@@ -123,7 +131,7 @@ export default async function handler(req, res) {
     // in the confirm request so client-confirmation is idempotent even when server-side persisted records are missing
   // Additional safety: only upsert when we have a provider confirmation/receipt field to avoid premature activation.
   const targetUserId = p.userId || userId || null;
-    const canUpsert = isSuccess && targetUserId && hasProviderConfirmation;
+    const canUpsert = isSuccess && targetUserId && hasProviderConfirmation && !requireCallback;
     if (isSuccess && !hasProviderConfirmation) {
       // Log and return a safe response so client won't activate/upgrade without a real provider receipt.
       try { await appendLog('warn', 'Confirm returned success but no provider confirmation field present; refusing to upsert user', { lookup, userId: targetUserId, providerResponseSummary: { ok: response.ok, status: response.status } }); } catch (e) { /* ignore */ }
@@ -149,7 +157,9 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.json({ ok: true, payment: p, providerResponse: data });
+  // Inform client whether we're still awaiting webhook callback to finalize the payment
+  const awaitingCallback = requireCallback && isSuccess;
+  return res.json({ ok: true, payment: p, providerResponse: data, awaitingCallback });
   } catch (err) {
     console.error('Confirm handler error', err);
     await appendLog('error', 'Error in /payments/confirm', { err: String(err) });
