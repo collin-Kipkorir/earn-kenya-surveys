@@ -265,13 +265,10 @@ export default function ProfilePage() {
                 } catch (err) {
                   console.debug('Confirm idempotent call failed', err);
                 }
-                // If we reached here, fallback to local activation but warn the user
-                      activateAccount(user.id);
-                      refreshUser();
-                      setIsProcessing(false);
-                      setCurrentPaymentId(null);
-                      setShowActivateModal(false);
-                      toast.success('Account activated! KSh 1 has been added to your balance as a bonus.');
+                // If we reached here, server confirm did not return success. Do NOT auto-activate.
+                setIsProcessing(false);
+                setRetryAvailable(true);
+                toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
                 return;
               }
               if (status === 'failed') {

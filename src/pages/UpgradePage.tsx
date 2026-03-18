@@ -245,13 +245,10 @@ export default function UpgradePage() {
                 } catch (err) {
                   console.debug('Confirm idempotent call failed', err);
                 }
-                // Fallback to local upgrade
-                upgradeTier(user.id, tier);
-                refreshUser();
+                // Server confirm did not indicate success; do NOT auto-upgrade. Let the user retry.
                 setIsProcessing(false);
-                setCurrentPaymentId(null);
-                setShowPayModal(null);
-                toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+                setRetryAvailable(true);
+                toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
                 return;
               }
               if (data.status === 'failed') {
