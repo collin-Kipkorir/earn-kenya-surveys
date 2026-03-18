@@ -169,10 +169,11 @@ export default function ProfilePage() {
                 }
 
                 const providerBody = pdata && pdata.body ? pdata.body : pdata;
+                // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
                 const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
                 const s = String(txStatus).toLowerCase();
                 const successKeywords = ['success', '0', 'completed', 'ok'];
-                const isSuccess = successKeywords.some(k => s === k || s.includes(k));
+                const isSuccess = (providerBody && (providerBody.success === true || providerBody.data?.success === true)) || successKeywords.some(k => s === k || s.includes(k));
                 if (isSuccess) {
                 // Confirm with server and persist the payment before activating locally
                 try {
