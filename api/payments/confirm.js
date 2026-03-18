@@ -100,10 +100,17 @@ export default async function handler(req, res) {
       await appendLog('info', 'Payment updated from confirm', { paymentId: p.id, status: p.status, lookup });
     }
 
-    // If success, attempt to upsert minimal user state
-    if (isSuccess && p.userId) {
+    // Ensure we have userId/phone/amount on the payment record (if provided in the confirm request)
+    p.userId = p.userId || userId || null;
+    p.phone = p.phone || phone || null;
+    p.amount = p.amount || amount || 0;
+
+    // If success, attempt to upsert minimal user state. Prefer payment.userId but fall back to the userId provided
+    // in the confirm request so client-confirmation is idempotent even when server-side persisted records are missing
+    const targetUserId = p.userId || userId || null;
+    if (isSuccess && targetUserId) {
       try {
-        const userUpdate = { id: p.userId };
+        const userUpdate = { id: targetUserId };
         if (p.purpose === 'activation') {
           userUpdate.isActivated = true;
           userUpdate.balance = (p.amount || 0) + 100;
@@ -114,7 +121,7 @@ export default async function handler(req, res) {
           userUpdate.dailySurveyLimit = tier === 'gold' ? 10 : 5;
         }
         await upsertUser(userUpdate);
-        await appendLog('info', 'Upserted server user from confirm', { userId: p.userId, userUpdate });
+        await appendLog('info', 'Upserted server user from confirm', { userId: targetUserId, userUpdate });
       } catch (err) {
         await appendLog('error', 'Failed to upsert user from confirm', { err: String(err), paymentId: p.id });
       }
