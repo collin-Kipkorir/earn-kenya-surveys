@@ -150,7 +150,8 @@ export default function UpgradePage() {
               if (pdata && pdata.ok === false) {
                 setIsProcessing(false);
                 setRetryAvailable(true);
-                toast.error('Payment failed or cancelled. Please try again.');
+                const providerErr = pdata.body?.error_message || pdata.body?.message || pdata.error || 'Payment failed or cancelled. Please try again.';
+                toast.error(String(providerErr));
                 return;
               }
 
@@ -200,7 +201,8 @@ export default function UpgradePage() {
               if (s && !['pending', 'unknown'].includes(s)) {
                 setIsProcessing(false);
                 setRetryAvailable(true);
-                toast.error('Payment failed. Please try again.');
+                const providerErr = providerBody?.error_message || providerBody?.message || 'Payment failed. Please try again.';
+                toast.error(String(providerErr));
                 return;
               }
             } else {

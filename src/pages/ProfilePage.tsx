@@ -45,10 +45,10 @@ export default function ProfilePage() {
       try {
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
   const base = apiBase.replace(/\/+$/, '');
-  const resp = await fetch(`${base}/payments/initiate`, {
+        const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 100, purpose: 'activation' })
+          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 1, purpose: 'activation' })
         });
         if (!resp.ok) {
           // try to read detailed error from body
@@ -163,7 +163,8 @@ export default function ProfilePage() {
                   // Provider returned an error (e.g., cancelled, invalid reference) — stop polling and allow retry
                   setIsProcessing(false);
                   setRetryAvailable(true);
-                  toast.error('Payment failed or cancelled. Please try again.');
+                  const providerErr = pdata.body?.error_message || pdata.body?.message || pdata.error || 'Payment failed or cancelled. Please try again.';
+                  toast.error(String(providerErr));
                   return;
                 }
 
@@ -178,17 +179,17 @@ export default function ProfilePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 1, purpose: 'activation' })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
-                    if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                      if (confirmJson.payment && confirmJson.payment.status === 'success') {
                       activateAccount(user.id);
                       refreshUser();
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
                       setShowActivateModal(false);
-                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                      toast.success('Account activated! KSh 1 has been added to your balance as a bonus.');
                       return;
                     } else {
                       // Server did not confirm success; surface to user
@@ -212,7 +213,10 @@ export default function ProfilePage() {
                 }
               }
               if (s && !['pending', 'unknown'].includes(s)) {
-                toast.error('Payment failed. Please try again.');
+                setIsProcessing(false);
+                setRetryAvailable(true);
+                const providerErr = providerBody?.error_message || providerBody?.message || 'Payment failed. Please try again.';
+                toast.error(String(providerErr));
                 return;
               }
             } else {
@@ -228,17 +232,17 @@ export default function ProfilePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 1, purpose: 'activation' })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
-                    if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                      if (confirmJson.payment && confirmJson.payment.status === 'success') {
                       activateAccount(user.id);
                       refreshUser();
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
                       setShowActivateModal(false);
-                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                      toast.success('Account activated! KSh 1 has been added to your balance as a bonus.');
                       return;
                     }
                   }
@@ -246,12 +250,12 @@ export default function ProfilePage() {
                   console.debug('Confirm idempotent call failed', err);
                 }
                 // If we reached here, fallback to local activation but warn the user
-                activateAccount(user.id);
-                refreshUser();
-                setIsProcessing(false);
-                setCurrentPaymentId(null);
-                setShowActivateModal(false);
-                toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                      activateAccount(user.id);
+                      refreshUser();
+                      setIsProcessing(false);
+                      setCurrentPaymentId(null);
+                      setShowActivateModal(false);
+                      toast.success('Account activated! KSh 1 has been added to your balance as a bonus.');
                 return;
               }
               if (status === 'failed') {
@@ -314,15 +318,15 @@ export default function ProfilePage() {
       {!user.isActivated && (
         <div className="bg-card rounded-xl p-5 shadow-card mb-4 border-2 border-accent">
           <h3 className="font-display font-bold text-foreground mb-2">Activate Your Account</h3>
-          <p className="text-sm text-muted-foreground mb-2">Pay KSh 100 via M-Pesa to activate your account and unlock withdrawals.</p>
+          <p className="text-sm text-muted-foreground mb-2">Pay KSh 1 via M-Pesa to activate your account and unlock withdrawals.</p>
           <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-3">
             <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground">
-              <strong>Bonus:</strong> The KSh 100 activation fee will be added to your SurveyEarn balance after activation!
+              <p className="text-xs text-muted-foreground">
+              <strong>Bonus:</strong> The KSh 1 activation fee will be added to your SurveyEarn balance after activation!
             </p>
           </div>
-          <button onClick={() => setShowActivateModal(true)} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
-            Activate Now — KSh 100
+            <button onClick={() => setShowActivateModal(true)} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
+            Activate Now — KSh 1
           </button>
         </div>
       )}
@@ -349,11 +353,11 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm p-4">
           <div className="bg-card rounded-2xl p-6 shadow-elevated max-w-sm w-full">
             <h3 className="text-xl font-display font-bold text-foreground mb-2">Account Activation</h3>
-            <p className="text-sm text-muted-foreground mb-3">An M-Pesa STK push of KSh 100 will be sent to your phone.</p>
+            <p className="text-sm text-muted-foreground mb-3">An M-Pesa STK push of KSh 1 will be sent to your phone.</p>
             <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-4">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                The KSh 100 will be <strong>added to your balance</strong> as an activation bonus!
+                The KSh 1 will be <strong>added to your balance</strong> as an activation bonus!
               </p>
             </div>
             <div className="mb-4">
@@ -363,7 +367,7 @@ export default function ProfilePage() {
             <div className="flex gap-3">
               <button onClick={() => { setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               {!isProcessing && !retryAvailable && (
-                <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 100</button>
+                <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 1</button>
               )}
               {isProcessing && (
                 <button disabled className="flex-1 py-3 rounded-xl bg-muted text-muted-foreground font-bold">Processing…</button>
