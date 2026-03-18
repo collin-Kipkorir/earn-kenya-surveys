@@ -78,6 +78,8 @@ export default function UpgradePage() {
         }
   const j = await resp.json();
   const paymentId = j.paymentId;
+  // Debug: log initiate response for easier troubleshooting
+  try { console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id'); console.log('initiate response', j); console.groupEnd(); } catch (e) { /* ignore */ }
 
         // If provider returned an immediate error, surface it and fetch logs
         if (j.providerResponse && j.providerResponse.ok === false) {
@@ -147,23 +149,31 @@ export default function UpgradePage() {
               const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
               const pdata = await sresp.json();
 
+              // Debug: log status proxy response
+              try { console.groupCollapsed('payments:poll', providerRequestId); console.log('status proxy response', pdata); } catch (e) { /* ignore */ }
+
               if (pdata && pdata.ok === false) {
                 setIsProcessing(false);
                 setRetryAvailable(true);
                 const providerErr = pdata.body?.error_message || pdata.body?.message || pdata.error || 'Payment failed or cancelled. Please try again.';
+                try { console.log('provider error (status proxy):', providerErr); } catch (e) { /* ignore */ }
                 toast.error(String(providerErr));
                 return;
               }
 
               const providerBody = pdata && pdata.body ? pdata.body : pdata;
+              try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
               // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
               const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
               const s = String(txStatus).toLowerCase();
               const successKeywords = ['success', '0', 'completed', 'ok'];
               const isSuccess = (providerBody && (providerBody.success === true || providerBody.data?.success === true)) || successKeywords.some(k => s === k || s.includes(k));
+              try { console.log('txStatus', txStatus, 'isSuccess', isSuccess); } catch (e) { /* ignore */ }
+              try { console.groupEnd(); } catch (e) { /* ignore */ }
               if (isSuccess) {
                 // Confirm with server and persist the payment before upgrading locally
                 try {
+                  try { console.log('Calling /payments/confirm with reference', providerRequestId, 'userId', user.id); } catch (e) { /* ignore */ }
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -171,6 +181,7 @@ export default function UpgradePage() {
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
+                    try { console.log('confirm response', confirmJson); } catch (e) { /* ignore */ }
                     if (confirmJson.payment && confirmJson.payment.status === 'success') {
                       upgradeTier(user.id, tier);
                       refreshUser();

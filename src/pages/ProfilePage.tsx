@@ -80,6 +80,12 @@ export default function ProfilePage() {
         }
   const j = await resp.json();
   const paymentId = j.paymentId;
+  // Debug: log initiate response for easier troubleshooting
+  try {
+    console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id');
+    console.log('initiate response', j);
+    console.groupEnd();
+  } catch (e) { /* ignore console errors in environments without console */ }
 
         // If provider returned an immediate error, surface it and fetch logs
         if (j.providerResponse && j.providerResponse.ok === false) {
@@ -158,6 +164,9 @@ export default function ProfilePage() {
                 const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
                 const pdata = await sresp.json();
 
+                // Debug: show polled status response and provider parsing
+                try { console.groupCollapsed('payments:poll', providerRequestId); console.log('status proxy response', pdata); } catch (e) { /* ignore */ }
+
                 // Our status proxy returns { ok, status, body } to make non-2xx provider replies inspectable.
                 if (pdata && pdata.ok === false) {
                   // Provider returned an error (e.g., cancelled, invalid reference) — stop polling and allow retry
@@ -169,14 +178,18 @@ export default function ProfilePage() {
                 }
 
                 const providerBody = pdata && pdata.body ? pdata.body : pdata;
+                try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
                 // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
                 const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
                 const s = String(txStatus).toLowerCase();
                 const successKeywords = ['success', '0', 'completed', 'ok'];
                 const isSuccess = (providerBody && (providerBody.success === true || providerBody.data?.success === true)) || successKeywords.some(k => s === k || s.includes(k));
+                try { console.log('txStatus', txStatus, 'isSuccess', isSuccess); } catch (e) { /* ignore */ }
+                try { console.groupEnd(); } catch (e) { /* ignore */ }
                 if (isSuccess) {
                 // Confirm with server and persist the payment before activating locally
                 try {
+                  try { console.log('Calling /payments/confirm with reference', providerRequestId, 'userId', user.id); } catch (e) { /* ignore */ }
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -184,6 +197,7 @@ export default function ProfilePage() {
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
+                      try { console.log('confirm response', confirmJson); } catch (e) { /* ignore */ }
                       if (confirmJson.payment && confirmJson.payment.status === 'success') {
                       activateAccount(user.id);
                       refreshUser();
@@ -220,11 +234,12 @@ export default function ProfilePage() {
                 toast.error(String(providerErr));
                 return;
               }
-            } else {
+              } else {
               // poll the local payment record
               const sresp = await fetch(`${base}/payments/${paymentId}`);
               if (!sresp.ok) continue;
               const data = await sresp.json();
+              try { console.log('polled local payment record', data); } catch (e) { /* ignore */ }
               providerRequestId = data.providerRequestId || null;
               status = data.status;
               if (status === 'success') {
