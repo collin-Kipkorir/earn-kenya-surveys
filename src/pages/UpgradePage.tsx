@@ -8,8 +8,10 @@ import { motion } from 'framer-motion';
 
 const tiers = [
   { id: 'free' as const, name: 'Free', icon: Shield, surveys: 3, rewards: 'KSh 5 – 15', cost: 0, features: ['3 surveys per day', 'Basic survey access', 'Standard support'] },
-  { id: 'premium' as const, name: 'Premium', icon: Zap, surveys: 10, rewards: 'KSh 30 – 50', cost: 100, features: ['10 surveys per day', 'Premium survey access', 'Higher rewards', 'Priority support'] },
-  { id: 'gold' as const, name: 'Gold', icon: Crown, surveys: 25, rewards: 'KSh 100 – 200', cost: 150, features: ['25 surveys per day', 'All survey access', 'Maximum rewards', 'VIP support', 'Exclusive surveys'] },
+  // Reduced amounts for safe testing: premium -> KSh 1
+  { id: 'premium' as const, name: 'Premium', icon: Zap, surveys: 10, rewards: 'KSh 30 – 50', cost: 1, features: ['10 surveys per day', 'Premium survey access', 'Higher rewards', 'Priority support'] },
+  // Reduced amounts for safe testing: gold -> KSh 2
+  { id: 'gold' as const, name: 'Gold', icon: Crown, surveys: 25, rewards: 'KSh 100 – 200', cost: 2, features: ['25 surveys per day', 'All survey access', 'Maximum rewards', 'VIP support', 'Exclusive surveys'] },
 ];
 
 export default function UpgradePage() {
@@ -45,7 +47,7 @@ export default function UpgradePage() {
     const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+      body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 1 : 2, purpose: `upgrade:${tier}` })
         });
         if (!resp.ok) {
           const errBodyText = await resp.text().catch(() => '');
@@ -163,7 +165,7 @@ export default function UpgradePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone, amount: tier === 'premium' ? 1 : 2, purpose: `upgrade:${tier}` })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
@@ -212,7 +214,7 @@ export default function UpgradePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone, amount: tier === 'premium' ? 1 : 2, purpose: `upgrade:${tier}` })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
