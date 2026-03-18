@@ -65,11 +65,21 @@ export default async function handler(req, res) {
 
   const s = String(transactionStatus).toLowerCase();
   // Prefer explicit boolean success flags from provider. For textual status values treat them as
-  // success only when the provider returned a 2xx (response.ok) to avoid treating error payloads as success.
+  // success only when the provider returned a 2xx (response.ok) AND the provider included a
+  // payment/provider reference (receipt) in the response. This prevents treating initiation-only
+  // or error responses as success.
   const successKeywords = ['success', 'completed', 'ok'];
   const numericSuccess = s === '0';
-  const isSuccess = (data.success === true) || (data.data && data.data.success === true)
-    || (response.ok && (successKeywords.some(k => s === k || s.includes(k)) || numericSuccess));
+
+  // Detect presence of provider-side confirmation identifiers
+  const providerConfirmedField = data.provider_reference || data.third_party_reference || data.payment_reference || data.reference || data.request_id || data.requestId || data.CheckoutRequestID || data.checkout_request_id || data.checkoutRequestID || data.data?.provider_reference || data.data?.payment_reference || data.data?.third_party_reference || null;
+  const hasProviderConfirmation = Boolean(providerConfirmedField);
+
+  const explicitSuccess = (data.success === true) || (data.data && data.data.success === true);
+  const textualSuccess = successKeywords.some(k => s === k || s.includes(k)) || numericSuccess;
+
+  const isSuccess = (explicitSuccess && hasProviderConfirmation)
+    || (response.ok && textualSuccess && hasProviderConfirmation);
   const isQueued = s === 'queued' || s.includes('queued');
 
     const payments = await readPayments();
