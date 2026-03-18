@@ -12,7 +12,10 @@ export default function ProfilePage() {
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [retryAvailable, setRetryAvailable] = useState(false);
+  const [pendingUntil, setPendingUntil] = useState<number | null>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+
+  
 
   if (!user) return null;
 
@@ -86,6 +89,23 @@ export default function ProfilePage() {
     console.log('initiate response', j);
     console.groupEnd();
   } catch (e) { /* ignore console errors in environments without console */ }
+
+        // If the server returned an existing pending initiation, inform the user and prevent retry
+        if (j.note === 'existing_pending' && j.payment) {
+          const created = j.payment.createdAt ? new Date(j.payment.createdAt).getTime() : Date.now();
+          const COOLDOWN_MIN = Number(import.meta.env.VITE_PAYHERO_INITIATE_COOLDOWN_MIN || 5);
+          const windowMs = COOLDOWN_MIN * 60 * 1000;
+          const until = created + windowMs;
+          setPendingUntil(until);
+          setCurrentPaymentId(j.payment.id || null);
+          setIsProcessing(false);
+          setRetryAvailable(false);
+          toast(`There is already a pending payment attempt. Please complete the M-Pesa prompt on your phone or wait ${COOLDOWN_MIN} minutes before retrying.`);
+          // schedule enabling retry after cooldown expires
+          const ms = until - Date.now();
+          if (ms > 0) setTimeout(() => { setPendingUntil(null); setRetryAvailable(true); }, ms);
+          return;
+        }
 
         // If provider returned an immediate error, surface it and fetch logs
         if (j.providerResponse && j.providerResponse.ok === false) {
@@ -294,6 +314,29 @@ export default function ProfilePage() {
     })();
   };
 
+  const viewPendingPaymentStatus = async () => {
+    if (!currentPaymentId) { toast('No pending payment id available'); return; }
+    try {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
+      const base = apiBase.replace(/\/+$/, '');
+      const resp = await fetch(`${base}/payments/${currentPaymentId}`);
+      if (!resp.ok) { toast.error('Failed to fetch payment status'); return; }
+      const data = await resp.json();
+      toast(`Payment status: ${data.status || 'unknown'}`);
+    } catch (e) {
+      toast.error('Failed to fetch payment status');
+    }
+  };
+
+  const formatRemaining = (until: number | null) => {
+    if (!until) return '';
+    const ms = Math.max(0, until - Date.now());
+    const sec = Math.floor(ms / 1000);
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -379,8 +422,16 @@ export default function ProfilePage() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => { setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
-              {!isProcessing && !retryAvailable && (
+              {!isProcessing && !retryAvailable && !pendingUntil && (
                 <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 1</button>
+              )}
+              {pendingUntil && (
+                <div className="flex-1">
+                  <button disabled className="w-full py-3 rounded-xl bg-muted text-muted-foreground font-bold">Pending — wait {formatRemaining(pendingUntil)}</button>
+                  <div className="mt-2">
+                    <button onClick={viewPendingPaymentStatus} className="w-full py-2 rounded-lg border border-input text-sm">View payment status</button>
+                  </div>
+                </div>
               )}
               {isProcessing && (
                 <button disabled className="flex-1 py-3 rounded-xl bg-muted text-muted-foreground font-bold">Processing…</button>
