@@ -5,6 +5,8 @@ const DATA_PATH = path.join(process.cwd(), 'server', 'payments.json');
 const LOG_PATH = path.join(process.cwd(), 'server', 'payments.log');
 const USERS_PATH = path.join(process.cwd(), 'server', 'users.json');
 const REFMAP_PATH = path.join(process.cwd(), 'server', 'reference-map.json');
+// in-memory cache to reduce file reads (behaves like fanaka-loans referenceMap plus persistence)
+let REFMAP_CACHE = null;
 
 export async function appendLog(level, message, meta) {
   const entry = { ts: new Date().toISOString(), level, message, meta };
@@ -72,11 +74,15 @@ export async function upsertUser(user) {
 
 // Reference map persistence: maps our external_reference -> provider reference
 export async function readReferenceMap() {
+  // return in-memory cache if available
+  if (REFMAP_CACHE) return REFMAP_CACHE;
   try {
     const raw = await fs.readFile(REFMAP_PATH, 'utf8');
-    return JSON.parse(raw || '{}');
+    REFMAP_CACHE = JSON.parse(raw || '{}');
+    return REFMAP_CACHE;
   } catch (e) {
-    return {};
+    REFMAP_CACHE = {};
+    return REFMAP_CACHE;
   }
 }
 
@@ -84,6 +90,8 @@ export async function writeReferenceMap(obj) {
   try {
     await fs.mkdir(path.dirname(REFMAP_PATH), { recursive: true });
     await fs.writeFile(REFMAP_PATH, JSON.stringify(obj, null, 2));
+    // update cache
+    REFMAP_CACHE = obj;
   } catch (e) {
     console.error('Failed to write reference map', e);
   }
@@ -91,10 +99,13 @@ export async function writeReferenceMap(obj) {
 
 export async function setReferenceMapping(externalReference, providerReference) {
   if (!externalReference || !providerReference) return null;
+  const key = String(externalReference);
+  const val = String(providerReference);
+  // ensure cache is loaded
   const m = await readReferenceMap();
-  m[String(externalReference)] = String(providerReference);
+  m[key] = val;
   await writeReferenceMap(m);
-  return m[String(externalReference)];
+  return m[key];
 }
 
 export async function getProviderReference(externalReference) {
