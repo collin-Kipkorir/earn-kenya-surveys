@@ -258,6 +258,16 @@ export default function ProfilePage() {
               } else {
                 // If providerRequestId hasn't been returned within NO_STATUS_TIMEOUT_MS, invalidate the attempt
                 if (!providerRequestId && (Date.now() - start) > NO_STATUS_TIMEOUT_MS) {
+                  try {
+                    // inform server to invalidate this initiation so it won't linger
+                    await fetch(`${base}/payments/${paymentId}/invalidate`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: user.id, reason: 'no_status_timeout' })
+                    });
+                  } catch (e) {
+                    console.warn('Failed to call invalidate endpoint', e);
+                  }
                   setIsProcessing(false);
                   setRetryAvailable(true);
                   toast.error('No response from payment provider — the request has been invalidated. Please try again.');

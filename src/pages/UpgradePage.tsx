@@ -248,6 +248,13 @@ export default function UpgradePage() {
             } else {
               // If providerRequestId hasn't arrived within the short window, invalidate this initiation so user can retry
               if (!providerRequestId && (Date.now() - start) > NO_STATUS_TIMEOUT_MS) {
+                try {
+                  await fetch(`${base}/payments/${paymentId}/invalidate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.id, reason: 'no_status_timeout' })
+                  });
+                } catch (e) { console.warn('Failed to call invalidate endpoint', e); }
                 setIsProcessing(false);
                 setRetryAvailable(true);
                 toast.error('No response from payment provider — the request has been invalidated. Please try again.');
