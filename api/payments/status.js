@@ -47,6 +47,14 @@ export default async function handler(req, res) {
       data = { raw: text };
     }
 
+    // Persist the raw provider response for auditing and debugging.
+    try {
+      const { appendLog } = await import('../_lib.js');
+      try { await appendLog('info', 'Status proxy response', { reference, status: response.status, body: data }); } catch (e) { /* ignore logging errors */ }
+    } catch (e) {
+      // ignore if import fails in some runtimes
+    }
+
     return res.status(response.status).json(data);
   } catch (err) {
     console.error('[api/payhero/status] error:', err.message);
