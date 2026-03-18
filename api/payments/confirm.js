@@ -121,8 +121,16 @@ export default async function handler(req, res) {
 
     // If success, attempt to upsert minimal user state. Prefer payment.userId but fall back to the userId provided
     // in the confirm request so client-confirmation is idempotent even when server-side persisted records are missing
-    const targetUserId = p.userId || userId || null;
-    if (isSuccess && targetUserId) {
+  // Additional safety: only upsert when we have a provider confirmation/receipt field to avoid premature activation.
+  const targetUserId = p.userId || userId || null;
+    const canUpsert = isSuccess && targetUserId && hasProviderConfirmation;
+    if (isSuccess && !hasProviderConfirmation) {
+      // Log and return a safe response so client won't activate/upgrade without a real provider receipt.
+      try { await appendLog('warn', 'Confirm returned success but no provider confirmation field present; refusing to upsert user', { lookup, userId: targetUserId, providerResponseSummary: { ok: response.ok, status: response.status } }); } catch (e) { /* ignore */ }
+      return res.json({ ok: false, reason: 'no_provider_confirmation', payment: p, providerResponse: data });
+    }
+
+    if (canUpsert) {
       try {
         const userUpdate = { id: targetUserId };
         if (p.purpose === 'activation') {
