@@ -1,6 +1,6 @@
 import { useAuth } from '@/lib/auth-context';
 import { upgradeTier } from '@/lib/storage';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Crown, Zap, Shield, Check, Info } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,6 +23,7 @@ export default function UpgradePage() {
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
   const [pendingUntil, setPendingUntil] = useState<number | null>(null);
+  const activateCancelledRef = useRef(false);
   const formatRemaining = (until: number | null) => {
     if (!until) return '';
     const ms = Math.max(0, until - Date.now());
@@ -38,6 +39,8 @@ export default function UpgradePage() {
 
   const handleUpgrade = (tier: 'premium' | 'gold') => {
     (async () => {
+      // clear any previous cancel flag for a fresh flow
+      activateCancelledRef.current = false;
       try {
     // Basic client-side phone normalization & validation
     const raw = phone || '';
@@ -172,6 +175,12 @@ export default function UpgradePage() {
   const NO_STATUS_TIMEOUT_MS = Number(import.meta.env.VITE_PAYHERO_NO_STATUS_TIMEOUT_MS || 10000); // 10s default
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
+          // stop polling early if user cancelled via the Cancel button
+          if (activateCancelledRef.current) {
+            setIsProcessing(false);
+            setRetryAvailable(true);
+            return;
+          }
           try {
               if (providerRequestId) {
               const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
@@ -396,7 +405,7 @@ export default function UpgradePage() {
               </div>
             )}
             <div className="flex gap-3">
-              <button onClick={() => { setShowPayModal(null); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
+              <button onClick={() => { activateCancelledRef.current = true; setShowPayModal(null); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               {!isProcessing && !retryAvailable && !pendingUntil && (
                 <button onClick={() => handleUpgrade(showPayModal)} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay via M-Pesa</button>
               )}

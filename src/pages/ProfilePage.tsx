@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { activateAccount } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [pendingUntil, setPendingUntil] = useState<number | null>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+  const activateCancelledRef = useRef(false);
 
   
 
@@ -31,6 +32,8 @@ export default function ProfilePage() {
     // The server will return a paymentId which we poll for status. Only after status === 'success'
     // do we activate the user locally.
     (async () => {
+      // clear any previous cancel flag for a fresh flow
+      activateCancelledRef.current = false;
       // Basic client-side phone normalization & validation to avoid provider rejections
       const raw = stkPhone || '';
       const digits = raw.replace(/\D/g, '');
@@ -178,6 +181,12 @@ export default function ProfilePage() {
         let status = 'pending';
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
+          // stop polling early if user cancelled via the Cancel button
+          if (activateCancelledRef.current) {
+            setIsProcessing(false);
+            setRetryAvailable(true);
+            return;
+          }
 
           try {
             if (providerRequestId) {
@@ -448,7 +457,7 @@ export default function ProfilePage() {
               </div>
             )}
             <div className="flex gap-3">
-              <button onClick={() => { setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
+              <button onClick={() => { activateCancelledRef.current = true; setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               {!isProcessing && !retryAvailable && !pendingUntil && (
                 <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 1</button>
               )}
