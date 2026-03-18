@@ -34,7 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const API_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '');
         if (u) {
           const base = API_BASE || '';
-          const resp = await fetch(`${base}/api/users/${u.id}`);
+          // API_BASE already points at the API root (e.g. '/api'), so avoid doubling '/api' in the path.
+          // Use the users path relative to the API root.
+          const resp = await fetch(`${base}/users/${u.id}`);
           if (resp.ok) {
             const data = await resp.json();
             if (data && data.user) {
