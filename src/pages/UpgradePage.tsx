@@ -169,6 +169,7 @@ export default function UpgradePage() {
 
   const start = Date.now();
   const timeoutMs = 2 * 60 * 1000;
+  const NO_STATUS_TIMEOUT_MS = Number(import.meta.env.VITE_PAYHERO_NO_STATUS_TIMEOUT_MS || 10000); // 10s default
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
           try {
@@ -245,6 +246,13 @@ export default function UpgradePage() {
                 return;
               }
             } else {
+              // If providerRequestId hasn't arrived within the short window, invalidate this initiation so user can retry
+              if (!providerRequestId && (Date.now() - start) > NO_STATUS_TIMEOUT_MS) {
+                setIsProcessing(false);
+                setRetryAvailable(true);
+                toast.error('No response from payment provider — the request has been invalidated. Please try again.');
+                return;
+              }
               const sresp = await fetch(`${base}/payments/${paymentId}`);
               if (!sresp.ok) continue;
               const data = await sresp.json();

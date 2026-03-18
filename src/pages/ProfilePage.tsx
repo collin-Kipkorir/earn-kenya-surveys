@@ -172,7 +172,8 @@ export default function ProfilePage() {
   // poll for status — if initiate returned providerRequestId use it immediately,
   // otherwise poll the local payment record until providerRequestId becomes available.
   const start = Date.now();
-        const timeoutMs = 2 * 60 * 1000; // 2 minutes
+    const timeoutMs = 2 * 60 * 1000; // 2 minutes
+  const NO_STATUS_TIMEOUT_MS = Number(import.meta.env.VITE_PAYHERO_NO_STATUS_TIMEOUT_MS || 10000); // default 10s
   // providerRequestId may have been returned directly from initiate
         let status = 'pending';
         while (Date.now() - start < timeoutMs) {
@@ -255,6 +256,13 @@ export default function ProfilePage() {
                 return;
               }
               } else {
+                // If providerRequestId hasn't been returned within NO_STATUS_TIMEOUT_MS, invalidate the attempt
+                if (!providerRequestId && (Date.now() - start) > NO_STATUS_TIMEOUT_MS) {
+                  setIsProcessing(false);
+                  setRetryAvailable(true);
+                  toast.error('No response from payment provider — the request has been invalidated. Please try again.');
+                  return;
+                }
               // poll the local payment record
               const sresp = await fetch(`${base}/payments/${paymentId}`);
               if (!sresp.ok) continue;
