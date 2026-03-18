@@ -1,4 +1,4 @@
-import { appendLog, /* readPayments, writePayments, */ generateId, setReferenceMapping } from '../_lib.js';
+import { appendLog, readPayments, writePayments, generateId, setReferenceMapping } from '../_lib.js';
 
 export default async function handler(req, res) {
   // top-level invocation guard: catch runtime errors and return helpful JSON
@@ -21,9 +21,10 @@ export default async function handler(req, res) {
       phone,
       amount,
       purpose: purpose || 'activation',
-      status: 'pending',
+      status: 'initiated', // local initiation record
       createdAt: new Date().toISOString(),
       providerResponse: null,
+      attemptCount: 1,
     };
 
     // Use the working STK flow from the reference project.
@@ -33,7 +34,37 @@ export default async function handler(req, res) {
 
     if (AUTH && DEFAULT_CHANNEL_ID) {
       try {
-        // initiation is ephemeral; do not write logs or persist here
+        // Persist a lightweight initiation record so we can track attempts and avoid
+        // re-issuing STK requests (this prevents account request breaches on Payhero).
+        const payments = await readPayments();
+
+        const MAX_ATTEMPTS = Number(process.env.PAYHERO_MAX_INITIATE_ATTEMPTS || 3);
+        const COOLDOWN_MIN = Number(process.env.PAYHERO_INITIATE_COOLDOWN_MIN || 5);
+
+        // normalize createdAt time window check
+        const windowMs = COOLDOWN_MIN * 60 * 1000;
+        const recentAttempts = payments.filter(p => p.phone === normPhone && (Date.now() - new Date(p.createdAt)) < windowMs).length;
+        if (recentAttempts >= MAX_ATTEMPTS) {
+          try { await appendLog('warn', 'Too many initiation attempts', { phone: normPhone, recentAttempts, MAX_ATTEMPTS }); } catch (e) { /* ignore */ }
+          return res.status(429).json({ error: 'too_many_attempts', message: `Too many initiation attempts. Wait ${COOLDOWN_MIN} minutes before retrying.` });
+        }
+
+        // If there is already a pending/initiated payment for this phone/user/external_reference,
+        // return it instead of issuing a new STK request. This prevents duplicate provider calls.
+        const existingPending = payments.find(p =>
+          (p.userId === userId || p.phone === normPhone || p.id === external_reference)
+          && (p.status === 'pending' || p.status === 'queued' || p.status === 'initiated')
+        );
+        if (existingPending) {
+          try { await appendLog('info', 'Returned existing pending initiation to avoid duplicate STK', { paymentId: existingPending.id, phone: normPhone }); } catch (e) { /* ignore */ }
+          const providerIdentifiers = { providerRequestId: existingPending.providerRequestId || null, providerReference: existingPending.providerReference || null, checkoutId: existingPending.checkoutId || null };
+          const stkSent = Boolean(providerIdentifiers.providerRequestId || providerIdentifiers.providerReference);
+          return res.json({ note: 'existing_pending', paymentId: existingPending.id, providerIdentifiers, stkSent, payment: existingPending });
+        }
+
+        // Persist initiation record before calling provider so we have a server-side record of attempts
+        payments.push(payment);
+        await writePayments(payments);
 
         // Normalize phone
           let normPhone = String(phone || '').replace(/\D/g, '');
@@ -86,10 +117,21 @@ export default async function handler(req, res) {
         }
 
         // Normalize provider response (do not persist or write logs at initiate time)
+        // update our persisted initiation record with provider response details
         payment.providerResponse = { ok: response.ok, status: response.status, body: data };
-
+        payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || data.CheckoutRequestID || null;
+        payment.providerReference = data.reference || data.data?.reference || null;
+        payment.updatedAt = new Date().toISOString();
+        payment.status = response.ok ? 'pending' : 'failed';
+        // write back updated payment record
+        try {
+          const current = await readPayments();
+          const idx = current.findIndex(x => x.id === payment.id);
+          if (idx !== -1) { current[idx] = payment; await writePayments(current); }
+        } catch (e) {
+          console.error('Failed to update persisted initiation record', e);
+        }
         if (response.ok) {
-          payment.providerRequestId = data.request_id || data.checkout_request_id || data.requestId || data.CheckoutRequestID || null;
           // If provider returned its authoritative reference, persist a mapping from our external_reference -> provider reference
           try {
             const provRef = data.reference || data.data?.reference || null;
