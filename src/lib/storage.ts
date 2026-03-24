@@ -228,8 +228,8 @@ export function upgradeTier(userId: string, newTier: 'premium' | 'gold') {
 export function activateAccount(userId: string) {
   const user = getUserById(userId)!;
   // Activation fee (KSh 100) paid via STK push is ADDED to balance as a bonus
-    updateUser(userId, { isActivated: true, balance: user.balance + 1, totalEarnings: user.totalEarnings + 1 });
-    addTransaction({ userId, type: 'activation', amount: 1, status: 'completed', description: 'Account activation — KSh 1 bonus added to balance' });
+  updateUser(userId, { isActivated: true, balance: user.balance + 100, totalEarnings: user.totalEarnings + 100 });
+  addTransaction({ userId, type: 'activation', amount: 100, status: 'completed', description: 'Account activation — KSh 100 bonus added to balance' });
   // Process referral bonus
   const updatedUser = getUserById(userId)!;
   if (updatedUser.referredBy) processReferral(updatedUser.referredBy);

@@ -54,7 +54,7 @@ export default function ProfilePage() {
         const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 1, purpose: 'activation' })
+          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 100, purpose: 'activation' })
         });
         if (!resp.ok) {
           // try to read detailed error from body
@@ -90,11 +90,6 @@ export default function ProfilePage() {
   try {
     console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id');
     console.log('initiate response', j);
-    // Log Payhero reference ids explicitly for quick browser debugging
-    const _provRef = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
-    const _provReqId = j.providerRequestId || j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || j.checkoutId || null;
-  try { console.info('Payhero initiate ids', { providerReference: _provRef, providerRequestId: _provReqId }); } catch (e) { /* ignore */ }
-  try { (window as unknown as Record<string, unknown>).lastPayheroRef = _provRef; (window as unknown as Record<string, unknown>).lastPayheroReqId = _provReqId; } catch (e) { /* ignore */ }
     console.groupEnd();
   } catch (e) { /* ignore console errors in environments without console */ }
 
@@ -212,20 +207,8 @@ export default function ProfilePage() {
                   return;
                 }
 
-                // The status proxy may return a wrapper { providerBody, providerRequestId, providerReference }
-                // prefer the explicit wrapper fields when present so we correctly parse provider shapes.
-                const providerBody = pdata && (pdata.body || pdata.providerBody) ? (pdata.body || pdata.providerBody) : pdata;
+                const providerBody = pdata && pdata.body ? pdata.body : pdata;
                 try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
-                // Expose status response ids for browser debugging. Look at top-level wrapper fields first.
-                try {
-                  const statusProvRef = (pdata && (pdata.providerReference || pdata.provider_reference)) || providerBody?.reference || providerBody?.data?.reference || null;
-                  const statusProvReq = (pdata && (pdata.providerRequestId || pdata.provider_request_id || pdata.request_id)) || providerBody?.CheckoutRequestID || providerBody?.checkout_request_id || providerBody?.request_id || providerBody?.requestId || null;
-                  console.info('Payhero status ids', { providerReference: statusProvRef, providerRequestId: statusProvReq });
-                  try {
-                    (window as unknown as Record<string, unknown>).lastPayheroRef = statusProvRef || (window as unknown as Record<string, unknown>).lastPayheroRef;
-                    (window as unknown as Record<string, unknown>).lastPayheroReqId = statusProvReq || (window as unknown as Record<string, unknown>).lastPayheroReqId;
-                  } catch (e) { /* ignore */ }
-                } catch (e) { /* ignore */ }
                 // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
                 const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
                 const s = String(txStatus).toLowerCase();
@@ -240,7 +223,7 @@ export default function ProfilePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 1, purpose: 'activation' })
+                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
@@ -251,7 +234,7 @@ export default function ProfilePage() {
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
                       setShowActivateModal(false);
-                      toast.success('Account activated! KSh 1 has been added to your balance as a bonus.');
+                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                       return;
                     } else {
                       // Server did not confirm success; surface to user
@@ -312,7 +295,7 @@ export default function ProfilePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 1, purpose: 'activation' })
+                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
@@ -322,7 +305,7 @@ export default function ProfilePage() {
                       setIsProcessing(false);
                       setCurrentPaymentId(null);
                       setShowActivateModal(false);
-                      toast.success('Account activated! KSh 1 has been added to your balance as a bonus.');
+                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                       return;
                     }
                   }
@@ -418,15 +401,15 @@ export default function ProfilePage() {
       {!user.isActivated && (
         <div className="bg-card rounded-xl p-5 shadow-card mb-4 border-2 border-accent">
           <h3 className="font-display font-bold text-foreground mb-2">Activate Your Account</h3>
-          <p className="text-sm text-muted-foreground mb-2">Pay KSh 1 via M-Pesa to activate your account and unlock withdrawals.</p>
+          <p className="text-sm text-muted-foreground mb-2">Pay KSh 100 via M-Pesa to activate your account and unlock withdrawals.</p>
           <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-3">
             <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-              <strong>Bonus:</strong> The KSh 1 activation fee will be added to your SurveyEarn balance after activation!
+              <strong>Bonus:</strong> The KSh 100 activation fee will be added to your SurveyEarn balance after activation!
             </p>
           </div>
             <button onClick={() => setShowActivateModal(true)} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">
-            Activate Now — KSh 1
+            Activate Now — KSh 100
           </button>
         </div>
       )}
@@ -453,11 +436,11 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm p-4">
           <div className="bg-card rounded-2xl p-6 shadow-elevated max-w-sm w-full">
             <h3 className="text-xl font-display font-bold text-foreground mb-2">Account Activation</h3>
-            <p className="text-sm text-muted-foreground mb-3">An M-Pesa STK push of KSh 1 will be sent to your phone.</p>
+            <p className="text-sm text-muted-foreground mb-3">An M-Pesa STK push of KSh 100 will be sent to your phone.</p>
             <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-4">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                The KSh 1 will be <strong>added to your balance</strong> as an activation bonus!
+                The KSh 100 will be <strong>added to your balance</strong> as an activation bonus!
               </p>
             </div>
             <div className="mb-4">
@@ -476,7 +459,7 @@ export default function ProfilePage() {
             <div className="flex gap-3">
               <button onClick={() => { activateCancelledRef.current = true; setShowActivateModal(false); setIsProcessing(false); setRetryAvailable(false); setCurrentPaymentId(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground font-medium hover:bg-muted transition-colors">Cancel</button>
               {!isProcessing && !retryAvailable && !pendingUntil && (
-                  <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 1</button>
+                  <button onClick={handleActivate} className="flex-1 py-3 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity">Pay KSh 100</button>
               )}
               {pendingUntil && (
                 <div className="flex-1">

@@ -1,4 +1,4 @@
-{
+"Do it for me" — I can (a) add admin endpoint now, or (b) change code to default requireCallback=false for testing (I don't recommend committing that directly).{
   "version": 2,
   
   

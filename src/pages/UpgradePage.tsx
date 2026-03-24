@@ -8,8 +8,8 @@ import { motion } from 'framer-motion';
 
 const tiers = [
   { id: 'free' as const, name: 'Free', icon: Shield, surveys: 3, rewards: 'KSh 5 – 15', cost: 0, features: ['3 surveys per day', 'Basic survey access', 'Standard support'] },
-  { id: 'premium' as const, name: 'Premium', icon: Zap, surveys: 10, rewards: 'KSh 30 – 50', cost: 1, features: ['10 surveys per day', 'Premium survey access', 'Higher rewards', 'Priority support'] },
-  { id: 'gold' as const, name: 'Gold', icon: Crown, surveys: 25, rewards: 'KSh 100 – 200', cost: 2, features: ['25 surveys per day', 'All survey access', 'Maximum rewards', 'VIP support', 'Exclusive surveys'] },
+  { id: 'premium' as const, name: 'Premium', icon: Zap, surveys: 10, rewards: 'KSh 30 – 50', cost: 100, features: ['10 surveys per day', 'Premium survey access', 'Higher rewards', 'Priority support'] },
+  { id: 'gold' as const, name: 'Gold', icon: Crown, surveys: 25, rewards: 'KSh 100 – 200', cost: 150, features: ['25 surveys per day', 'All survey access', 'Maximum rewards', 'VIP support', 'Exclusive surveys'] },
 ];
 
 export default function UpgradePage() {
@@ -57,7 +57,7 @@ export default function UpgradePage() {
     const resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 1 : 2, purpose: `upgrade:${tier}` })
+      body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
         });
         if (!resp.ok) {
           const errBodyText = await resp.text().catch(() => '');
@@ -89,12 +89,7 @@ export default function UpgradePage() {
   const j = await resp.json();
   const paymentId = j.paymentId;
   // Debug: log initiate response for easier troubleshooting
-  try { console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id'); console.log('initiate response', j);
-    const _provRef = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
-    const _provReqId = j.providerRequestId || j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || j.checkoutId || null;
-    try { console.info('Payhero initiate ids', { providerReference: _provRef, providerRequestId: _provReqId }); } catch (e) { /* ignore */ }
-    try { (window as unknown as Record<string, unknown>).lastPayheroRef = _provRef; (window as unknown as Record<string, unknown>).lastPayheroReqId = _provReqId; } catch (e) { /* ignore */ }
-    console.groupEnd(); } catch (e) { /* ignore */ }
+  try { console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id'); console.log('initiate response', j); console.groupEnd(); } catch (e) { /* ignore */ }
 
         // If the server returned an existing pending initiation, inform the user and prevent retry
         if (j.note === 'existing_pending' && j.payment) {
@@ -201,19 +196,8 @@ export default function UpgradePage() {
                 return;
               }
 
-                // The status proxy may return a wrapper { providerBody, providerRequestId, providerReference }
-                // prefer the explicit wrapper fields when present so we correctly parse provider shapes.
-                const providerBody = pdata && (pdata.body || pdata.providerBody) ? (pdata.body || pdata.providerBody) : pdata;
-                try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
-                try {
-                  const statusProvRef = (pdata && (pdata.providerReference || pdata.provider_reference)) || providerBody?.reference || providerBody?.data?.reference || null;
-                  const statusProvReq = (pdata && (pdata.providerRequestId || pdata.provider_request_id || pdata.request_id)) || providerBody?.CheckoutRequestID || providerBody?.checkout_request_id || providerBody?.request_id || providerBody?.requestId || null;
-                  console.info('Payhero status ids', { providerReference: statusProvRef, providerRequestId: statusProvReq });
-                  try {
-                    (window as unknown as Record<string, unknown>).lastPayheroRef = statusProvRef || (window as unknown as Record<string, unknown>).lastPayheroRef;
-                    (window as unknown as Record<string, unknown>).lastPayheroReqId = statusProvReq || (window as unknown as Record<string, unknown>).lastPayheroReqId;
-                  } catch (e) { /* ignore */ }
-                } catch (e) { /* ignore */ }
+              const providerBody = pdata && pdata.body ? pdata.body : pdata;
+              try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
               // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
               const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
               const s = String(txStatus).toLowerCase();
@@ -228,7 +212,7 @@ export default function UpgradePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone, amount: tier === 'premium' ? 1 : 2, purpose: `upgrade:${tier}` })
+                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
@@ -293,7 +277,7 @@ export default function UpgradePage() {
                   const confirmResp = await fetch(`${base}/payments/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone, amount: tier === 'premium' ? 1 : 2, purpose: `upgrade:${tier}` })
+                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
                   });
                   if (confirmResp.ok) {
                     const confirmJson = await confirmResp.json();
