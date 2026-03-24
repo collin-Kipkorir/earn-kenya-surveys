@@ -171,7 +171,12 @@ export default function UpgradePage() {
   const start = Date.now();
   const timeoutMs = 2 * 60 * 1000;
   const NO_STATUS_TIMEOUT_MS = Number(import.meta.env.VITE_PAYHERO_NO_STATUS_TIMEOUT_MS || 10000); // 10s default
-        while (Date.now() - start < timeoutMs) {
+    // Require two consecutive successful polls a few seconds apart to avoid premature confirms
+    let consecutiveSuccessCount = 0;
+    let lastSuccessAt = 0;
+    const SUCCESS_GAP_MS = Number(import.meta.env.VITE_PAYHERO_SUCCESS_GAP_MS || 3000);
+
+    while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
           // stop polling early if user cancelled via the Cancel button
           if (activateCancelledRef.current) {
@@ -206,6 +211,21 @@ export default function UpgradePage() {
               try { console.log('txStatus', txStatus, 'isSuccess', isSuccess); } catch (e) { /* ignore */ }
               try { console.groupEnd(); } catch (e) { /* ignore */ }
               if (isSuccess) {
+                // Require two successful polls separated by SUCCESS_GAP_MS to reduce false-positives
+                const now = Date.now();
+                if (lastSuccessAt && (now - lastSuccessAt) >= SUCCESS_GAP_MS) {
+                  consecutiveSuccessCount++;
+                } else {
+                  consecutiveSuccessCount = 1;
+                }
+                lastSuccessAt = now;
+                try { console.log('consecutiveSuccessCount', consecutiveSuccessCount, 'lastSuccessAt', new Date(lastSuccessAt).toISOString()); } catch (e) { /* ignore */ }
+
+                if (consecutiveSuccessCount < 2) {
+                  // wait for another confirmation round
+                  continue;
+                }
+
                 // Confirm with server and persist the payment before upgrading locally
                 try {
                   try { console.log('Calling /payments/confirm with reference', providerRequestId, 'userId', user.id); } catch (e) { /* ignore */ }
