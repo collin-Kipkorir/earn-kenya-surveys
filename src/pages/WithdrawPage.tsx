@@ -32,7 +32,7 @@ export default function WithdrawPage() {
             onClick={() => navigate('/dashboard/profile')}
             className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-bold hover:opacity-90 transition-opacity"
           >
-            Activate Account (KSh 100)
+            Activate Account (KSh 1)
           </button>
         </div>
       </div>

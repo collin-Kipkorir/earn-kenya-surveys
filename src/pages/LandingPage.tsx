@@ -13,8 +13,8 @@ const steps = [
 
 const tiers = [
   { name: 'Free', surveys: '3 surveys/day', rewards: 'KSh 5 – 15 per survey', color: 'bg-muted', border: 'border-border' },
-  { name: 'Premium', surveys: '10 surveys/day', rewards: 'KSh 30 – 50 per survey', color: 'gradient-primary', border: 'border-primary', badge: 'KSh 100' },
-  { name: 'Gold', surveys: '25 surveys/day', rewards: 'KSh 100 – 200 per survey', color: 'gradient-gold', border: 'border-accent', badge: 'KSh 150' },
+  { name: 'Premium', surveys: '10 surveys/day', rewards: 'KSh 30 – 50 per survey', color: 'gradient-primary', border: 'border-primary', badge: 'KSh 1' },
+  { name: 'Gold', surveys: '25 surveys/day', rewards: 'KSh 100 – 200 per survey', color: 'gradient-gold', border: 'border-accent', badge: 'KSh 2' },
 ];
 
 const testimonials = [
