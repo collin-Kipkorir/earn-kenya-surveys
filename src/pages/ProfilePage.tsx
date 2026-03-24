@@ -90,6 +90,11 @@ export default function ProfilePage() {
   try {
     console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id');
     console.log('initiate response', j);
+    // Log Payhero reference ids explicitly for quick browser debugging
+    const _provRef = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
+    const _provReqId = j.providerRequestId || j.providerResponse?.body?.CheckoutRequestID || j.providerResponse?.body?.checkout_request_id || j.payment?.providerRequestId || j.checkoutId || null;
+  try { console.info('Payhero initiate ids', { providerReference: _provRef, providerRequestId: _provReqId }); } catch (e) { /* ignore */ }
+  try { (window as unknown as Record<string, unknown>).lastPayheroRef = _provRef; (window as unknown as Record<string, unknown>).lastPayheroReqId = _provReqId; } catch (e) { /* ignore */ }
     console.groupEnd();
   } catch (e) { /* ignore console errors in environments without console */ }
 
@@ -209,6 +214,13 @@ export default function ProfilePage() {
 
                 const providerBody = pdata && pdata.body ? pdata.body : pdata;
                 try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
+                // Expose status response ids for browser debugging
+                try {
+                  const statusProvRef = providerBody?.reference || providerBody?.data?.reference || null;
+                  const statusProvReq = providerBody?.CheckoutRequestID || providerBody?.checkout_request_id || providerBody?.request_id || providerBody?.requestId || null;
+                  console.info('Payhero status ids', { providerReference: statusProvRef, providerRequestId: statusProvReq });
+                  try { (window as unknown as Record<string, unknown>).lastPayheroRef = statusProvRef || (window as unknown as Record<string, unknown>).lastPayheroRef; (window as unknown as Record<string, unknown>).lastPayheroReqId = statusProvReq || (window as unknown as Record<string, unknown>).lastPayheroReqId; } catch (e) { /* ignore */ }
+                } catch (e) { /* ignore */ }
                 // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
                 const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
                 const s = String(txStatus).toLowerCase();
