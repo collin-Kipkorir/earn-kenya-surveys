@@ -212,14 +212,19 @@ export default function ProfilePage() {
                   return;
                 }
 
-                const providerBody = pdata && pdata.body ? pdata.body : pdata;
+                // The status proxy may return a wrapper { providerBody, providerRequestId, providerReference }
+                // prefer the explicit wrapper fields when present so we correctly parse provider shapes.
+                const providerBody = pdata && (pdata.body || pdata.providerBody) ? (pdata.body || pdata.providerBody) : pdata;
                 try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
-                // Expose status response ids for browser debugging
+                // Expose status response ids for browser debugging. Look at top-level wrapper fields first.
                 try {
-                  const statusProvRef = providerBody?.reference || providerBody?.data?.reference || null;
-                  const statusProvReq = providerBody?.CheckoutRequestID || providerBody?.checkout_request_id || providerBody?.request_id || providerBody?.requestId || null;
+                  const statusProvRef = (pdata && (pdata.providerReference || pdata.provider_reference)) || providerBody?.reference || providerBody?.data?.reference || null;
+                  const statusProvReq = (pdata && (pdata.providerRequestId || pdata.provider_request_id || pdata.request_id)) || providerBody?.CheckoutRequestID || providerBody?.checkout_request_id || providerBody?.request_id || providerBody?.requestId || null;
                   console.info('Payhero status ids', { providerReference: statusProvRef, providerRequestId: statusProvReq });
-                  try { (window as unknown as Record<string, unknown>).lastPayheroRef = statusProvRef || (window as unknown as Record<string, unknown>).lastPayheroRef; (window as unknown as Record<string, unknown>).lastPayheroReqId = statusProvReq || (window as unknown as Record<string, unknown>).lastPayheroReqId; } catch (e) { /* ignore */ }
+                  try {
+                    (window as unknown as Record<string, unknown>).lastPayheroRef = statusProvRef || (window as unknown as Record<string, unknown>).lastPayheroRef;
+                    (window as unknown as Record<string, unknown>).lastPayheroReqId = statusProvReq || (window as unknown as Record<string, unknown>).lastPayheroReqId;
+                  } catch (e) { /* ignore */ }
                 } catch (e) { /* ignore */ }
                 // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
                 const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
