@@ -198,7 +198,7 @@ export default function ProfilePage() {
                     setShowActivateModal(false);
                     toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
                     return;
-                  } else if (confirmJson.awaitingCallback) {
+                  } else if (confirmJson.awaitingCallback || (confirmJson.payment && confirmJson.payment.status === 'pending')) {
                     // poll local payment record for finalization
                     try {
                       toast('Payment recorded. Waiting for provider callback to finalize...');

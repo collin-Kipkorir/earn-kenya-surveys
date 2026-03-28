@@ -263,7 +263,7 @@ export default function UpgradePage() {
                       setShowPayModal(null);
                       toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                       return;
-                    } else if (confirmJson.awaitingCallback) {
+                    } else if (confirmJson.awaitingCallback || (confirmJson.payment && confirmJson.payment.status === 'pending')) {
                       // Await webhook: poll local payment record for final status
                       try {
                         toast('Payment recorded. Waiting for provider callback to finalize...');
