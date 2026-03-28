@@ -28,41 +28,31 @@ export default function ProfilePage() {
   };
 
   const handleActivate = () => {
-    // Start payment flow via backend server which will call Payhero and receive callback.
-    // The server will return a paymentId which we poll for status. Only after status === 'success'
-    // do we activate the user locally.
     (async () => {
-      // clear any previous cancel flag for a fresh flow
       activateCancelledRef.current = false;
-      // Basic client-side phone normalization & validation to avoid provider rejections
+      // Basic client-side phone normalization & validation
       const raw = stkPhone || '';
       const digits = raw.replace(/\D/g, '');
       let normalized = digits;
       if (normalized.startsWith('254')) normalized = '0' + normalized.slice(3);
       if (normalized.startsWith('+254')) normalized = '0' + normalized.slice(4);
       if (normalized.startsWith('7') && normalized.length === 9) normalized = '0' + normalized;
-      // Expect Kenyan national format: 0 followed by 9 digits (total 10)
       if (!/^0\d{9}$/.test(normalized)) {
         toast.error('Please enter a valid Kenyan phone number (e.g. 0712345678)');
         return;
       }
-      // Use normalized phone for the initiate call
       const sendPhone = normalized;
       try {
-  const USE_PAYHERO_CLIENT = String(import.meta.env.VITE_USE_PAYHERO_CLIENT || '').toLowerCase() === 'true';
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-  const base = apiBase.replace(/\/+$, '');
+        const USE_PAYHERO_CLIENT = String(import.meta.env.VITE_USE_PAYHERO_CLIENT || '').toLowerCase() === 'true';
+        const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
+        const base = apiBase.replace(/\/+$/, '');
         let resp: Response | null = null;
-        // If enabled, use the client-side payHeroService to initiate the STK push (dev only).
         if (USE_PAYHERO_CLIENT) {
           try {
-            // import dynamically to avoid bundling server-only code in some builds
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
             const { payHeroService } = await import('../../payhero-integration/payhero-service');
             const r = await payHeroService.initiateSTKPush({ amount: 1, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
             if (r.success) {
-              // create a minimal response-like object expected by existing logic
               resp = new Response(JSON.stringify({ paymentId: null, providerReference: r.reference, providerRequestId: r.CheckoutRequestID || null, providerResponse: r }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             } else {
               resp = new Response(JSON.stringify({ error: r.error }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -71,14 +61,17 @@ export default function ProfilePage() {
             resp = new Response(String(err instanceof Error ? err.message : err), { status: 500 });
           }
         } else {
-        resp = await fetch(`${base}/payments/initiate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 1, purpose: 'activation' })
-        });
+          resp = await fetch(`${base}/payments/initiate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 1, purpose: 'activation' })
+          });
         }
+        if (!resp) throw new Error('No response from initiate');
+        const j = await resp.json().catch(() => null);
+        const paymentId = j?.paymentId || j?.payment?.id || j?.id || null;
+
         if (!resp.ok) {
-          // try to read detailed error from body
           const errBodyText = await resp.text().catch(() => '');
           let errBodyObj: unknown = null;
           try { errBodyObj = JSON.parse(errBodyText); } catch (e) { errBodyObj = null; }
@@ -100,22 +93,12 @@ export default function ProfilePage() {
               console.log(logsJson.logs);
               console.groupEnd();
             }
-          } catch (e) {
-            // ignore
-          }
+          } catch (e) { /* ignore */ }
           return;
         }
-  const j = await resp.json();
-  const paymentId = j.paymentId;
-  // Debug: log initiate response for easier troubleshooting
-  try {
-    console.groupCollapsed('payments:initiate', paymentId || 'no-payment-id');
-    console.log('initiate response', j);
-    console.groupEnd();
-  } catch (e) { /* ignore console errors in environments without console */ }
 
-        // If the server returned an existing pending initiation, inform the user and prevent retry
-        if (j.note === 'existing_pending' && j.payment) {
+        // existing pending
+        if (j?.note === 'existing_pending' && j.payment) {
           const created = j.payment.createdAt ? new Date(j.payment.createdAt).getTime() : Date.now();
           const COOLDOWN_MIN = Number(import.meta.env.VITE_PAYHERO_INITIATE_COOLDOWN_MIN || 5);
           const windowMs = COOLDOWN_MIN * 60 * 1000;
@@ -125,125 +108,72 @@ export default function ProfilePage() {
           setIsProcessing(false);
           setRetryAvailable(false);
           toast(`There is already a pending payment attempt. Please complete the M-Pesa prompt on your phone or wait ${COOLDOWN_MIN} minutes before retrying.`);
-          // schedule enabling retry after cooldown expires
           const ms = until - Date.now();
           if (ms > 0) setTimeout(() => { setPendingUntil(null); setRetryAvailable(true); }, ms);
           return;
         }
 
-        // If provider returned an immediate error, surface it and fetch logs
-        if (j.providerResponse && j.providerResponse.ok === false) {
+        if (j?.providerResponse && j.providerResponse.ok === false) {
           const errMsg = j.providerResponse.body?.error_message || j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
           toast.error(`Payment initiation error: ${errMsg}`);
-          try {
-            const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-            const base = apiBase.replace(/\/+$/, '');
-            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
-            if (logsResp.ok) {
-              const logsJson = await logsResp.json();
-              console.groupCollapsed('Payhero logs (initiate error)');
-              console.log(logsJson.logs);
-              console.groupEnd();
-            }
-          } catch (e) {
-            // ignore
-          }
           setRetryAvailable(true);
           setIsProcessing(false);
           return;
         }
 
-        // Prefer Payhero `reference`, but fall back to checkout/request ids so the UI doesn't get stuck.
-        const providerReference = j.providerReference || j.providerResponse?.body?.reference || j.payment?.providerResponse?.body?.reference || null;
+        const providerReference = j?.providerReference || j?.providerResponse?.body?.reference || j?.payment?.providerResponse?.body?.reference || null;
         let providerRequestId = providerReference
-          || j.providerRequestId
-          || j.providerResponse?.body?.CheckoutRequestID
-          || j.providerResponse?.body?.checkout_request_id
-          || j.payment?.providerRequestId
-          || j.checkoutId
+          || j?.providerRequestId
+          || j?.providerResponse?.body?.CheckoutRequestID
+          || j?.providerResponse?.body?.checkout_request_id
+          || j?.payment?.providerRequestId
+          || j?.checkoutId
           || null;
-        if (!providerRequestId) {
+
+        if (!providerRequestId && !paymentId) {
           toast.error('Payment provider did not return a reference or checkout id. Please try again.');
           setRetryAvailable(true);
           setIsProcessing(false);
           return;
         }
-        // If provider returned an immediate error, surface it and fetch logs
-        if (j.providerResponse && j.providerResponse.ok === false) {
-          const errMsg = j.providerResponse.error || j.providerResponse.body?.message || 'Payment provider error';
-          toast.error(`Payment initiation error: ${errMsg}`);
-          try {
-            const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-            const base = apiBase.replace(/\/+$/, '');
-            const logsResp = await fetch(`${base}/payments/logs?limit=50`);
-            if (logsResp.ok) {
-              const logsJson = await logsResp.json();
-              console.groupCollapsed('Payhero logs (initiate error)');
-              console.log(logsJson.logs);
-              console.groupEnd();
-            }
-          } catch (e) {
-            // ignore
-          }
-          return;
-        }
-  if (!paymentId) throw new Error('No payment id returned');
-  setCurrentPaymentId(paymentId);
-  setIsProcessing(true);
-  setRetryAvailable(false);
-  toast.success('STK push initiated. Please complete the payment on your phone.');
 
-  // poll for status — if initiate returned providerRequestId use it immediately,
-  // otherwise poll the local payment record until providerRequestId becomes available.
-  const start = Date.now();
-    const timeoutMs = 2 * 60 * 1000; // 2 minutes
-  const NO_STATUS_TIMEOUT_MS = Number(import.meta.env.VITE_PAYHERO_NO_STATUS_TIMEOUT_MS || 10000); // default 10s
-  // providerRequestId may have been returned directly from initiate
-        let status = 'pending';
-        // Require two consecutive successful polls a few seconds apart to avoid premature confirms
+        if (!paymentId) throw new Error('No payment id returned');
+        setCurrentPaymentId(paymentId);
+        setIsProcessing(true);
+        setRetryAvailable(false);
+        toast.success('STK push initiated. Please complete the payment on your phone.');
+
+        const start = Date.now();
+        const timeoutMs = 2 * 60 * 1000;
+        const NO_STATUS_TIMEOUT_MS = Number(import.meta.env.VITE_PAYHERO_NO_STATUS_TIMEOUT_MS || 10000);
         let consecutiveSuccessCount = 0;
         let lastSuccessAt = 0;
         const SUCCESS_GAP_MS = Number(import.meta.env.VITE_PAYHERO_SUCCESS_GAP_MS || 3000);
 
         while (Date.now() - start < timeoutMs) {
           await new Promise(r => setTimeout(r, 2000));
-          // stop polling early if user cancelled via the Cancel button
           if (activateCancelledRef.current) {
             setIsProcessing(false);
             setRetryAvailable(true);
             return;
           }
-
           try {
             if (providerRequestId) {
-                // poll Payhero via our status proxy
-                const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
-                const pdata = await sresp.json();
-
-                // Debug: show polled status response and provider parsing
-                try { console.groupCollapsed('payments:poll', providerRequestId); console.log('status proxy response', pdata); } catch (e) { /* ignore */ }
-
-                // Our status proxy returns { ok, status, body } to make non-2xx provider replies inspectable.
-                if (pdata && pdata.ok === false) {
-                  // Provider returned an error (e.g., cancelled, invalid reference) — stop polling and allow retry
-                  setIsProcessing(false);
-                  setRetryAvailable(true);
-                  const providerErr = pdata.body?.error_message || pdata.body?.message || pdata.error || 'Payment failed or cancelled. Please try again.';
-                  toast.error(String(providerErr));
-                  return;
-                }
-
-                const providerBody = pdata && pdata.body ? pdata.body : pdata;
-                try { console.log('providerBody parsed', providerBody); } catch (e) { /* ignore */ }
-                // Accept multiple provider shapes: explicit boolean success, nested data.success, or status/result fields
-                const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
-                const s = String(txStatus).toLowerCase();
-                const successKeywords = ['success', '0', 'completed', 'ok'];
-                const isSuccess = (providerBody && (providerBody.success === true || providerBody.data?.success === true)) || successKeywords.some(k => s === k || s.includes(k));
-                try { console.log('txStatus', txStatus, 'isSuccess', isSuccess); } catch (e) { /* ignore */ }
-                try { console.groupEnd(); } catch (e) { /* ignore */ }
-                if (isSuccess) {
-                // Require two successful polls separated by SUCCESS_GAP_MS to reduce false-positives
+              const sresp = await fetch(`${base}/payments/status?reference=${encodeURIComponent(providerRequestId)}`);
+              const pdata = await sresp.json();
+              if (pdata && pdata.ok === false) {
+                setIsProcessing(false);
+                setRetryAvailable(true);
+                const providerErr = pdata.body?.error_message || pdata.body?.message || pdata.error || 'Payment failed or cancelled. Please try again.';
+                toast.error(String(providerErr));
+                return;
+              }
+              const providerBody = pdata && pdata.body ? pdata.body : pdata;
+              const txStatus = providerBody.status || providerBody.result || providerBody.resultCode || providerBody.data?.status || (providerBody.data && providerBody.data.transaction && providerBody.data.transaction.status) || 'unknown';
+              const s = String(txStatus).toLowerCase();
+              const successKeywords = ['success', '0', 'completed', 'ok'];
+              const isSuccess = (providerBody && (providerBody.success === true || providerBody.data?.success === true)) || successKeywords.some(k => s === k || s.includes(k));
+              if (isSuccess) {
                 const now = Date.now();
                 if (lastSuccessAt && (now - lastSuccessAt) >= SUCCESS_GAP_MS) {
                   consecutiveSuccessCount++;
@@ -251,50 +181,71 @@ export default function ProfilePage() {
                   consecutiveSuccessCount = 1;
                 }
                 lastSuccessAt = now;
-                try { console.log('consecutiveSuccessCount', consecutiveSuccessCount, 'lastSuccessAt', new Date(lastSuccessAt).toISOString()); } catch (e) { /* ignore */ }
+                if (consecutiveSuccessCount < 2) continue;
 
-                if (consecutiveSuccessCount < 2) {
-                  // wait for another confirmation round
-                  continue;
-                }
-
-                // Confirm with server and persist the payment before activating locally
-                try {
-                  try { console.log('Calling /payments/confirm with reference', providerRequestId, 'userId', user.id); } catch (e) { /* ignore */ }
-                  const confirmResp = await fetch(`${base}/payments/confirm`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
-                  });
-                  if (confirmResp.ok) {
-                    const confirmJson = await confirmResp.json();
-                      try { console.log('confirm response', confirmJson); } catch (e) { /* ignore */ }
-                      if (confirmJson.payment && confirmJson.payment.status === 'success') {
-                      activateAccount(user.id);
-                      refreshUser();
-                      setIsProcessing(false);
-                      setCurrentPaymentId(null);
-                      setShowActivateModal(false);
-                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
-                      return;
-                    } else {
-                      // Server did not confirm success; surface to user
+                const confirmResp = await fetch(`${base}/payments/confirm`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ reference: providerRequestId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+                });
+                if (confirmResp.ok) {
+                  const confirmJson = await confirmResp.json();
+                  if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                    activateAccount(user.id);
+                    refreshUser();
+                    setIsProcessing(false);
+                    setCurrentPaymentId(null);
+                    setShowActivateModal(false);
+                    toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                    return;
+                  } else if (confirmJson.awaitingCallback) {
+                    // poll local payment record for finalization
+                    try {
+                      toast('Payment recorded. Waiting for provider callback to finalize...');
+                      const pollStart = Date.now();
+                      const pollTimeout = 90 * 1000;
+                      while (Date.now() - pollStart < pollTimeout) {
+                        await new Promise(r => setTimeout(r, 2000));
+                        const resp2 = await fetch(`${base}/payments/${paymentId}`);
+                        if (!resp2.ok) continue;
+                        const data2 = await resp2.json();
+                        if (data2.status === 'success') {
+                          activateAccount(user.id);
+                          refreshUser();
+                          setIsProcessing(false);
+                          setCurrentPaymentId(null);
+                          setShowActivateModal(false);
+                          toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                          return;
+                        }
+                        if (data2.status === 'failed') {
+                          setIsProcessing(false);
+                          setRetryAvailable(true);
+                          toast.error('Payment failed. Please try again.');
+                          return;
+                        }
+                      }
                       setIsProcessing(false);
                       setRetryAvailable(true);
-                      toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
+                      toast.error('Payment recorded but not yet confirmed by the server. Please contact support or try again later.');
+                      return;
+                    } catch (err) {
+                      console.debug('Callback polling failed', err);
+                      setIsProcessing(false);
+                      setRetryAvailable(true);
+                      toast.error('Error while waiting for payment confirmation. Please try again.');
                       return;
                     }
                   } else {
                     setIsProcessing(false);
                     setRetryAvailable(true);
-                    toast.error('Failed to confirm payment with server. Please try again.');
+                    toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
                     return;
                   }
-                } catch (err) {
-                  console.error('Confirm call failed', err);
+                } else {
                   setIsProcessing(false);
                   setRetryAvailable(true);
-                  toast.error('Error confirming payment with server. Please try again.');
+                  toast.error('Failed to confirm payment with server. Please try again.');
                   return;
                 }
               }
@@ -305,69 +256,64 @@ export default function ProfilePage() {
                 toast.error(String(providerErr));
                 return;
               }
-              } else {
-                // If providerRequestId hasn't been returned within NO_STATUS_TIMEOUT_MS, invalidate the attempt
-                if (!providerRequestId && (Date.now() - start) > NO_STATUS_TIMEOUT_MS) {
-                  try {
-                    // inform server to invalidate this initiation so it won't linger
-                    await fetch(`${base}/payments/${paymentId}/invalidate`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: user.id, reason: 'no_status_timeout' })
-                    });
-                  } catch (e) {
-                    console.warn('Failed to call invalidate endpoint', e);
-                  }
-                  setIsProcessing(false);
-                  setRetryAvailable(true);
-                  toast.error('No response from payment provider — the request has been invalidated. Please try again.');
-                  return;
-                }
-              // poll the local payment record
-              const sresp = await fetch(`${base}/payments/${paymentId}`);
-              if (!sresp.ok) continue;
-              const data = await sresp.json();
-              try { console.log('polled local payment record', data); } catch (e) { /* ignore */ }
-              providerRequestId = data.providerRequestId || null;
-              status = data.status;
-              if (status === 'success') {
-                // Payment already persisted by callback or previous confirm; still try to confirm idempotently
-                try {
-                  const confirmResp = await fetch(`${base}/payments/confirm`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
-                  });
-                  if (confirmResp.ok) {
-                    const confirmJson = await confirmResp.json();
-                      if (confirmJson.payment && confirmJson.payment.status === 'success') {
-                      activateAccount(user.id);
-                      refreshUser();
-                      setIsProcessing(false);
-                      setCurrentPaymentId(null);
-                      setShowActivateModal(false);
-                      toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
-                      return;
-                    }
-                  }
-                } catch (err) {
-                  console.debug('Confirm idempotent call failed', err);
-                }
-                // If we reached here, server confirm did not return success. Do NOT auto-activate.
-                setIsProcessing(false);
-                setRetryAvailable(true);
-                toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
-                return;
+            }
+            // If providerRequestId hasn't been returned within NO_STATUS_TIMEOUT_MS, invalidate the attempt
+            if (!providerRequestId && (Date.now() - start) > NO_STATUS_TIMEOUT_MS) {
+              try {
+                await fetch(`${base}/payments/${paymentId}/invalidate`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: user.id, reason: 'no_status_timeout' })
+                });
+              } catch (e) {
+                console.warn('Failed to call invalidate endpoint', e);
               }
-              if (status === 'failed') {
-                setIsProcessing(false);
-                setRetryAvailable(true);
-                toast.error('Payment failed. Please try again.');
-                return;
+              setIsProcessing(false);
+              setRetryAvailable(true);
+              toast.error('No response from payment provider — the request has been invalidated. Please try again.');
+              return;
+            }
+
+            // poll the local payment record
+            const sresp = await fetch(`${base}/payments/${paymentId}`);
+            if (!sresp.ok) continue;
+            const data = await sresp.json();
+            providerRequestId = data.providerRequestId || null;
+            const status = data.status;
+            if (status === 'success') {
+              try {
+                const confirmResp = await fetch(`${base}/payments/confirm`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ external_reference: paymentId, userId: user.id, phone: stkPhone, amount: 100, purpose: 'activation' })
+                });
+                if (confirmResp.ok) {
+                  const confirmJson = await confirmResp.json();
+                  if (confirmJson.payment && confirmJson.payment.status === 'success') {
+                    activateAccount(user.id);
+                    refreshUser();
+                    setIsProcessing(false);
+                    setCurrentPaymentId(null);
+                    setShowActivateModal(false);
+                    toast.success('Account activated! KSh 100 has been added to your balance as a bonus.');
+                    return;
+                  }
+                }
+              } catch (err) {
+                console.debug('Confirm idempotent call failed', err);
               }
+              setIsProcessing(false);
+              setRetryAvailable(true);
+              toast.error('Payment appears successful but could not be confirmed by the server. Please contact support or try again.');
+              return;
+            }
+            if (status === 'failed') {
+              setIsProcessing(false);
+              setRetryAvailable(true);
+              toast.error('Payment failed. Please try again.');
+              return;
             }
           } catch (err) {
-            // ignore and retry until timeout
             console.debug('Polling error', err);
           }
         }

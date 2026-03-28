@@ -263,6 +263,44 @@ export default function UpgradePage() {
                       setShowPayModal(null);
                       toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
                       return;
+                    } else if (confirmJson.awaitingCallback) {
+                      // Await webhook: poll local payment record for final status
+                      try {
+                        toast('Payment recorded. Waiting for provider callback to finalize...');
+                        const pollStart = Date.now();
+                        const pollTimeout = 90 * 1000;
+                        while (Date.now() - pollStart < pollTimeout) {
+                          await new Promise(r => setTimeout(r, 2000));
+                          const resp2 = await fetch(`${base}/payments/${paymentId}`);
+                          if (!resp2.ok) continue;
+                          const data2 = await resp2.json();
+                          if (data2.status === 'success') {
+                            upgradeTier(user.id, tier);
+                            refreshUser();
+                            setIsProcessing(false);
+                            setCurrentPaymentId(null);
+                            setShowPayModal(null);
+                            toast.success(`Upgraded to ${tier}! Payment processed via M-Pesa.`);
+                            return;
+                          }
+                          if (data2.status === 'failed') {
+                            setIsProcessing(false);
+                            setRetryAvailable(true);
+                            toast.error('Payment failed. Please try again.');
+                            return;
+                          }
+                        }
+                        setIsProcessing(false);
+                        setRetryAvailable(true);
+                        toast.error('Payment recorded but not yet confirmed by the server. Please contact support or try again later.');
+                        return;
+                      } catch (err) {
+                        console.debug('Callback polling failed', err);
+                        setIsProcessing(false);
+                        setRetryAvailable(true);
+                        toast.error('Error while waiting for payment confirmation. Please try again.');
+                        return;
+                      }
                     } else {
                       setIsProcessing(false);
                       setRetryAvailable(true);

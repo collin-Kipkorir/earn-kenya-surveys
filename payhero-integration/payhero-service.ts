@@ -228,4 +228,6 @@ class PayHeroService {
 		}
 }
 
+}
+
 export const payHeroService = new PayHeroService();
