@@ -39,7 +39,7 @@ export default function UpgradePage() {
     (async () => {
       // clear any previous cancel flag for a fresh flow
       activateCancelledRef.current = false;
-      try {
+    try {
     // Basic client-side phone normalization & validation
     const raw = phone || '';
     const digits = raw.replace(/\D/g, '');
@@ -52,13 +52,31 @@ export default function UpgradePage() {
       return;
     }
     const sendPhone = normalized;
+    const USE_PAYHERO_CLIENT = String(import.meta.env.VITE_USE_PAYHERO_CLIENT || '').toLowerCase() === 'true';
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
     const base = apiBase.replace(/\/+$/, '');
-    const resp = await fetch(`${base}/payments/initiate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
-        });
+    let resp: Response | null = null;
+    if (USE_PAYHERO_CLIENT) {
+      try {
+        // @ts-ignore
+        const { payHeroService } = await import('../../payhero-integration/payhero-service');
+        const r = await payHeroService.initiateSTKPush({ amount: tier === 'premium' ? 1 : 1, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
+        if (r.success) {
+          resp = new Response(JSON.stringify({ paymentId: null, providerReference: r.reference, providerRequestId: r.CheckoutRequestID || null, providerResponse: r }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        } else {
+          resp = new Response(JSON.stringify({ error: r.error }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }
+      } catch (err) {
+        resp = new Response(String(err instanceof Error ? err.message : err), { status: 500 });
+      }
+    } else {
+      const iresp = await fetch(`${base}/payments/initiate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: tier === 'premium' ? 100 : 150, purpose: `upgrade:${tier}` })
+      });
+      resp = iresp;
+    }
         if (!resp.ok) {
           const errBodyText = await resp.text().catch(() => '');
           let errBodyObj: unknown = null;

@@ -1,19 +1,32 @@
-// payhero-integration/payhero-config.ts
-// Configuration helpers for PayHero integration. Use Vite envs on the frontend and Node envs on the server.
+// PayHero configuration (copy and set environment variables in your project)
+export const PAYHERO_CONFIG = {
+  BASE_URL: process.env.PAYHERO_BASE_URL || 'https://backend.payhero.co.ke',
+  ACCOUNT_ID: process.env.VITE_PAYHERO_ACCOUNT_ID || process.env.PAYHERO_ACCOUNT_ID || '',
+  CHANNEL_ID: process.env.VITE_PAYHERO_CHANNEL_ID || process.env.PAYHERO_CHANNEL_ID || '',
+  // Default AUTH_TOKEN copied from this repository for convenience when integrating locally.
+  // In production, override via environment variables and keep secrets out of source control.
+  AUTH_TOKEN: process.env.VITE_PAYHERO_AUTH_TOKEN || process.env.PAYHERO_AUTH_TOKEN || 'Basic OWZZWVUwTG9SSkdnZ0pvUmhwQ3M6SDREdWwxQTVTT0N2QksxUk85dTE1eUJoazFXWHhJNFZMcm80Sks0MA==',
+  CALLBACK_URL: process.env.VITE_PAYHERO_CALLBACK_URL || process.env.PAYHERO_CALLBACK_URL || 'http://localhost:5000/api/payment-callback',
+  API_BASE_URL: process.env.VITE_API_BASE_URL || ''
+};
 
-export const FRONTEND = typeof window !== 'undefined';
+export const PAYHERO_ENDPOINTS = {
+  INITIATE_PAYMENT: '/api/v2/payments',
+  CHECK_STATUS: '/api/v2/transaction-status',
+  CHECK_TRANSACTION: '/api/v2/transactions',
+  WEBHOOK: '/api/v2/payments/webhook'
+};
 
-export const CLIENT_AUTH_TOKEN = (import.meta.env && (import.meta.env.VITE_PAYHERO_AUTH_TOKEN as string)) || '';
-export const CLIENT_CHANNEL_ID = (import.meta.env && (import.meta.env.VITE_PAYHERO_CHANNEL_ID as string)) || '';
-export const CLIENT_ACCOUNT_ID = (import.meta.env && (import.meta.env.VITE_PAYHERO_ACCOUNT_ID as string)) || '';
-export const CLIENT_CALLBACK_URL = (import.meta.env && (import.meta.env.VITE_PAYHERO_CALLBACK_URL as string)) || '';
+export const PAYMENT_PROVIDERS = {
+  MPESA: 'm-pesa',
+  AIRTEL: 'airtel-money',
+  TKASH: 't-kash'
+} as const;
 
-// Server-side config
-export const SERVER_AUTH_TOKEN = process.env.PAYHERO_AUTH_TOKEN || '';
-export const SERVER_API_URL = process.env.PAYHERO_API_URL || 'https://backend.payhero.co.ke';
-export const SERVER_API_KEY = process.env.PAYHERO_API_KEY || '';
-export const WEBHOOK_SECRET = process.env.PAYHERO_WEBHOOK_SECRET || '';
+export const CURRENCIES = {
+  KES: 'KES',
+  USD: 'USD'
+} as const;
 
-// Timeouts and tuning
-export const DEFAULT_STATUS_POLL_INTERVAL_MS = Number((import.meta.env && (import.meta.env.VITE_PAYHERO_POLL_INTERVAL_MS as string)) || 2000);
-export const DEFAULT_SUCCESS_GAP_MS = Number((import.meta.env && (import.meta.env.VITE_PAYHERO_SUCCESS_GAP_MS as string)) || 3000);
+export type PaymentProvider = typeof PAYMENT_PROVIDERS[keyof typeof PAYMENT_PROVIDERS];
+export type Currency = typeof CURRENCIES[keyof typeof CURRENCIES];

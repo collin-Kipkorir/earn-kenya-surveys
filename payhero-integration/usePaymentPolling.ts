@@ -1,67 +1,85 @@
-// payhero-integration/usePaymentPolling.ts
-import { useEffect, useRef, useState } from 'react';
-import { checkPaymentStatus } from './payhero-service';
-import { DEFAULT_STATUS_POLL_INTERVAL_MS, DEFAULT_SUCCESS_GAP_MS } from './payhero-config';
+import { useState, useEffect, useRef } from 'react';
+import { payHeroService } from './payhero-service';
+import type { PayHeroStatusResponse } from './payhero-types';
 
-export type PollingOptions = {
-  intervalMs?: number;
-  requiredConsecutiveSuccesses?: number;
-  onSuccess?: (data: any) => void;
-  onError?: (err: any) => void;
-};
-
-export function usePaymentPolling(reference: string | null, opts?: PollingOptions) {
-  const intervalMs = opts?.intervalMs || DEFAULT_STATUS_POLL_INTERVAL_MS;
-  const required = opts?.requiredConsecutiveSuccesses || 2;
-  const onSuccess = opts?.onSuccess;
-  const onError = opts?.onError;
-
-  const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
-  const runningRef = useRef(false);
-  const consecutiveRef = useRef(0);
-  const lastSuccessAtRef = useRef(0);
-
-  useEffect(() => {
-    if (!reference) return;
-    runningRef.current = true;
-    setStatus('pending');
-    const t = setInterval(async () => {
-      if (!runningRef.current) return;
-      try {
-        const r = await checkPaymentStatus(reference);
-        if (r.success) {
-          const now = Date.now();
-          if (lastSuccessAtRef.current && (now - lastSuccessAtRef.current) >= DEFAULT_SUCCESS_GAP_MS) {
-            consecutiveRef.current += 1;
-          } else {
-            consecutiveRef.current = 1;
-          }
-          lastSuccessAtRef.current = now;
-          if (consecutiveRef.current >= required) {
-            runningRef.current = false;
-            setStatus('success');
-            onSuccess && onSuccess(r);
-            clearInterval(t);
-          }
-        } else {
-          // If provider explicitly returned failure status text
-          if (r.status && !['pending', 'unknown'].includes(String(r.status).toLowerCase())) {
-            runningRef.current = false;
-            setStatus('failed');
-            onError && onError(r);
-            clearInterval(t);
-          }
-        }
-      } catch (err) {
-        // ignore transient errors
-        console.debug('poll error', err);
-      }
-    }, intervalMs);
-
-    return () => { runningRef.current = false; clearInterval(t); };
-  }, [reference]);
-
-  return { status };
+interface UsePaymentPollingOptions {
+  onSuccess?: () => void;
+  onError?: (error: string) => void;
+  onTimeout?: () => void;
+  maxAttempts?: number;
+  pollInterval?: number;
 }
 
-export default usePaymentPolling;
+export function usePaymentPolling(paymentReference: string | null, options: UsePaymentPollingOptions = {}) {
+  const { onSuccess, onError, onTimeout, maxAttempts = 90, pollInterval = 2000 } = options;
+  const [status, setStatus] = useState<'idle'|'polling'|'success'|'failed'|'timeout'>('idle');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const sessionRef = useRef<{ attempts: number; startTime: number; intervalId?: any; timeoutId?: any }>({ attempts: 0, startTime: 0 });
+
+  useEffect(() => {
+    if (!paymentReference) {
+      setStatus('idle');
+      return;
+    }
+
+    setStatus('polling');
+    setMessage('Initiating payment...');
+    setError(null);
+
+    let mounted = true;
+    const start = Date.now();
+    sessionRef.current = { attempts: 0, startTime: start };
+
+    sessionRef.current.intervalId = setInterval(async () => {
+      try {
+        sessionRef.current.attempts++;
+        if (!mounted) return;
+        const response: PayHeroStatusResponse = await payHeroService.checkPaymentStatus(paymentReference);
+        if (response.status === 'SUCCESS') {
+          clearInterval(sessionRef.current.intervalId);
+          setStatus('success');
+          onSuccess?.();
+        } else if (response.status === 'FAILED') {
+          clearInterval(sessionRef.current.intervalId);
+          setStatus('failed');
+          const errMsg = response.error?.message || 'Payment failed';
+          setError(errMsg);
+          onError?.(errMsg);
+        } else {
+          // still pending/queued
+          const elapsed = Math.floor((Date.now() - start) / 1000);
+          if (elapsed > 30) setMessage('Please check your M-PESA prompt to accept the payment');
+        }
+
+        if (sessionRef.current.attempts >= maxAttempts) {
+          clearInterval(sessionRef.current.intervalId);
+          setStatus('timeout');
+          setError('Payment timed out');
+          onTimeout?.();
+        }
+      } catch (err) {
+        clearInterval(sessionRef.current.intervalId);
+        setStatus('failed');
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMsg);
+        onError?.(errMsg);
+      }
+    }, pollInterval);
+
+    sessionRef.current.timeoutId = setTimeout(() => {
+      clearInterval(sessionRef.current.intervalId);
+      setStatus('timeout');
+      setError('Payment timed out');
+      onTimeout?.();
+    }, maxAttempts * pollInterval);
+
+    return () => {
+      mounted = false;
+      clearInterval(sessionRef.current.intervalId);
+      clearTimeout(sessionRef.current.timeoutId);
+    };
+  }, [paymentReference, maxAttempts, pollInterval, onSuccess, onError, onTimeout]);
+
+  return { status, message, error };
+}

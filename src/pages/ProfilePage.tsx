@@ -49,13 +49,34 @@ export default function ProfilePage() {
       // Use normalized phone for the initiate call
       const sendPhone = normalized;
       try {
+  const USE_PAYHERO_CLIENT = String(import.meta.env.VITE_USE_PAYHERO_CLIENT || '').toLowerCase() === 'true';
   const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
-  const base = apiBase.replace(/\/+$/, '');
-        const resp = await fetch(`${base}/payments/initiate`, {
+  const base = apiBase.replace(/\/+$, '');
+        let resp: Response | null = null;
+        // If enabled, use the client-side payHeroService to initiate the STK push (dev only).
+        if (USE_PAYHERO_CLIENT) {
+          try {
+            // import dynamically to avoid bundling server-only code in some builds
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            const { payHeroService } = await import('../../payhero-integration/payhero-service');
+            const r = await payHeroService.initiateSTKPush({ amount: 1, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
+            if (r.success) {
+              // create a minimal response-like object expected by existing logic
+              resp = new Response(JSON.stringify({ paymentId: null, providerReference: r.reference, providerRequestId: r.CheckoutRequestID || null, providerResponse: r }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            } else {
+              resp = new Response(JSON.stringify({ error: r.error }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+            }
+          } catch (err) {
+            resp = new Response(String(err instanceof Error ? err.message : err), { status: 500 });
+          }
+        } else {
+        resp = await fetch(`${base}/payments/initiate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 100, purpose: 'activation' })
+          body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 1, purpose: 'activation' })
         });
+        }
         if (!resp.ok) {
           // try to read detailed error from body
           const errBodyText = await resp.text().catch(() => '');

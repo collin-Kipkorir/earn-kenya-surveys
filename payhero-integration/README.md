@@ -1,25 +1,14 @@
-# PayHero Integration (M-Pesa STK) — Quick Start
+PayHero integration (scaffold)
 
-This folder contains a small, framework-agnostic integration scaffold for PayHero (M-Pesa STK) that you can copy into your project.
+This folder contains a minimal PayHero (M-Pesa STK) integration scaffold for the app.
 
-Files added
-- `payhero-config.ts` — environment-driven config helpers
-- `payhero-types.ts` — small TS types for responses
-- `payhero-service.ts` — client wrapper (calls your app server endpoints)
-- `usePaymentPolling.ts` — React hook for polling with safety logic
-- `payhero-webhook.ts` — Express-compatible webhook handler factory
-- `useCredits.ts` — example credit application helper (calls your server endpoint)
-- `.env.example` — example env vars
+Files:
+- `payhero-config.ts` — env-driven config
+- `payhero-types.ts` — types for requests/responses
+- `payhero-service.ts` — client-side wrapper (useful for local/dev) with `initiateSTKPush` and `checkPaymentStatus`
+- `usePaymentPolling.ts` — React hook to poll PayHero for a reference
+- `useCredits.ts` — small helper to finalize payments via server `/api/payments/confirm` (adapted here to activation/upgrade)
 
-How to wire it into your app
-1. Copy the folder into your project root (or move files into your preferred folders).
-2. Provide env vars (see `.env.example`).
-3. On the frontend, call `initiateSTKPush` and start `usePaymentPolling(reference, { onSuccess, onError })`.
-4. On the server, create an Express route using `makePayheroWebhookHandler` and provide an `onConfirmed` callback to update your DB idempotently.
-
-Security notes
-- Never commit production secrets. Use environment variables or a secret manager.
-- Always perform server-side credit application in the webhook handler after verification and make it idempotent.
-
-Testing
-- Use the PayHero sandbox / functions emulator or call `/api/payments/callback` with a simulated payload to verify your webhook logic.
+Notes:
+- For production, prefer server-side initiation and webhook processing. The client-side service uses VITE_PAYHERO_AUTH_TOKEN which is okay for local dev only.
+- This project uses amount=1 for activation/upgrade test flows. Adjust env vars in `.env.example`.
