@@ -490,7 +490,7 @@ export default function UpgradePage() {
             <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20 mb-4">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                The upgrade fee is paid via M-Pesa and will <strong>not</strong> be deducted from your SurveyEarn balance.
+                The upgrade fee is paid via M-Pesa and will <strong>not</strong> be deducted from your Survey Earn balance.
               </p>
             </div>
             <div className="mb-4">
