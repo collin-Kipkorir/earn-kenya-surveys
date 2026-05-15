@@ -60,7 +60,7 @@ export default function UpgradePage() {
       try {
         // @ts-ignore
         const { payHeroService } = await import('../../payhero-integration/payhero-service');
-        const r = await payHeroService.initiateSTKPush({ amount: tier === 'premium' ? 1 : 1, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
+        const r = await payHeroService.initiateSTKPush({ amount: tier === 'premium' ? 100 : 150, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
         if (r.success) {
           resp = new Response(JSON.stringify({ paymentId: null, providerReference: r.reference, providerRequestId: r.CheckoutRequestID || null, providerResponse: r }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         } else {

@@ -1,16 +1,10 @@
-{
+"Do it for me" — I can (a) add admin endpoint now, or (b) change code to default requireCallback=false for testing (I don't recommend committing that directly).{
   "version": 2,
+  
+  
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "^/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|json|webmanifest))$", "dest": "/$1" },
+    { "src": "(.*)", "dest": "/index.html" }
   ]
 }

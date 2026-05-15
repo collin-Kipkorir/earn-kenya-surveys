@@ -51,7 +51,7 @@ export default function ProfilePage() {
           try {
             // @ts-ignore
             const { payHeroService } = await import('../../payhero-integration/payhero-service');
-            const r = await payHeroService.initiateSTKPush({ amount: 1, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
+            const r = await payHeroService.initiateSTKPush({ amount: 100, customerName: user?.name || user?.id || 'user', phoneNumber: sendPhone });
             if (r.success) {
               resp = new Response(JSON.stringify({ paymentId: null, providerReference: r.reference, providerRequestId: r.CheckoutRequestID || null, providerResponse: r }), { status: 200, headers: { 'Content-Type': 'application/json' } });
             } else {
@@ -64,7 +64,7 @@ export default function ProfilePage() {
           resp = await fetch(`${base}/payments/initiate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 1, purpose: 'activation' })
+            body: JSON.stringify({ userId: user.id, phone: sendPhone, amount: 100, purpose: 'activation' })
           });
         }
         if (!resp) throw new Error('No response from initiate');
