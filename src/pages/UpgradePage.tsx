@@ -53,10 +53,11 @@ export default function UpgradePage() {
     }
     const sendPhone = normalized;
     const USE_PAYHERO_CLIENT = String(import.meta.env.VITE_USE_PAYHERO_CLIENT || '').toLowerCase() === 'true';
+    const allowDirectPayHeroClient = USE_PAYHERO_CLIENT && ['localhost', '127.0.0.1'].includes(window.location.hostname);
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || (import.meta.env.VITE_API_BASE as string) || '/api';
     const base = apiBase.replace(/\/+$/, '');
     let resp: Response | null = null;
-    if (USE_PAYHERO_CLIENT) {
+    if (allowDirectPayHeroClient) {
       try {
         // @ts-ignore
         const { payHeroService } = await import('../../payhero-integration/payhero-service');
